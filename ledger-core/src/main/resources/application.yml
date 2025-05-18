@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: ledgee
+  datasource:
+    username: postgres
+    password: mysecretpassword
+    url: jdbc:postgresql://localhost:5432/ledgee
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+ledger:
+  batch-job:
+    staged-fetch-in-minutes: 5
+    staged-fetch-batch-size: 10000

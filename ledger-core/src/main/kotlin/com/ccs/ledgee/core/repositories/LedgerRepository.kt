@@ -1,0 +1,90 @@
+package com.ccs.ledgee.core.repositories
+
+import com.ccs.ledgee.core.utils.uuidStr
+import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.Id
+import jakarta.persistence.SequenceGenerator
+import jakarta.persistence.Table
+import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.PagingAndSortingRepository
+import org.springframework.stereotype.Repository
+import java.time.OffsetDateTime
+
+const val LEDGER_SEQ = "ledger_id_seq"
+const val LEDGER_DEFAULT_CREATED_BY = "system"
+
+enum class LedgerEntryType {
+    DebitRecord,
+    CreditRecord
+}
+
+enum class IsPending {
+    No,
+    Yes
+}
+
+enum class LedgerRecordStatus {
+    Staged,
+    Unbalanced,
+    Balanced,
+    Error,
+    HotArchive,
+    ColdArchive,
+    ForDeletion
+}
+
+@Entity
+@Table(name = "ledger")
+data class LedgerEntity(
+    @Id
+    @GeneratedValue(generator = LEDGER_SEQ)
+    @SequenceGenerator(name = LEDGER_SEQ, sequenceName = LEDGER_SEQ, allocationSize = 1)
+    val id: Long = 0L,
+
+    var parentPublicId: String? = null,
+    var publicId: String = uuidStr(),
+    var accountId: String = uuidStr(),
+    var amount: Long = 0L,
+
+    @Enumerated(EnumType.ORDINAL)
+    var entryType: LedgerEntryType = LedgerEntryType.DebitRecord,
+    @Enumerated(EnumType.ORDINAL)
+    var isPending: IsPending = IsPending.No,
+    @Enumerated(EnumType.ORDINAL)
+    var recordStatus: LedgerRecordStatus = LedgerRecordStatus.Staged,
+
+    var externalReferenceId: String = uuidStr(),
+    var description: String = entryType.name,
+
+    val transactionOn: OffsetDateTime = OffsetDateTime.now(),
+    val createdOn: OffsetDateTime = OffsetDateTime.now(),
+    val createdBy: String = LEDGER_DEFAULT_CREATED_BY
+)
+
+@Repository
+interface LedgerRepository : JpaRepository<LedgerEntity, Long>, PagingAndSortingRepository<LedgerEntity, Long> {
+
+    @Query(
+        nativeQuery = true, value = """
+        SELECT 
+            distinct external_reference_id 
+        FROM ledger
+        WHERE
+            is_pending = :isPending
+            AND record_status = 0
+            AND transaction_on < current_timestamp - (interval '1 minutes' * :pastMinutes)
+    """
+    )
+    fun retrieveAllExternalIdsInThePastInMinutesAndPendingIs(
+        pastMinutes: Int = 60,
+        isPending: Short = 0,
+        page: Pageable = Pageable.ofSize(10000)
+    ): List<String>
+
+    fun findAllByExternalReferenceId(externalReferenceId: String): List<LedgerEntity>
+}

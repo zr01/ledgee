@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: ledgee-db
+    environment:
+      POSTGRES_PASSWORD: mysecretpassword
+      PGDATA: /var/lib/ledgee/db
+    volumes:
+      - ./db/create-db.sql:/docker-entrypoint-initdb.d/create-db.sql
+      - db-data:/var/lib/ledgee/db
+    ports:
+      - "5432:5432"
+
+  kafka:
+    image: landoop/fast-data-dev
+    container_name: kafka-aio
+    environment:
+      ADV_HOST: "127.0.0.1"
+      RUNTESTS: "0"
+      SAMPLEDATA: "0"
+      RUNNING_SAMPLEDATA: "0"
+    ports:
+      - "2181:2181"
+      - "3030:3030"
+      - "8081-8083:8081-8083"
+      - "9581-9585:9581-9585"
+      - "9092:9092"
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: ledgee-init-db
+    environment:
+      FLYWAY_EDITION: community
+    volumes:
+      - ./db/flyway/sql:/flyway/sql
+
+volumes:
+  db-data:
+    name: db-data
