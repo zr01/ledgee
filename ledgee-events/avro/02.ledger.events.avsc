@@ -1,0 +1,107 @@
+[
+  {
+    "type": "record",
+    "name": "LedgerEvent",
+    "namespace": "com.ccs.ledgee.events",
+    "doc": "Represents a ledger entry event in the timeseries",
+    "fields": [
+      {
+        "name": "id",
+        "type": "long",
+        "doc": "Internal identifier of the ledger entry"
+      },
+      {
+        "name": "parentPublicId",
+        "type": [
+          "null",
+          "string"
+        ],
+        "default": null,
+        "doc": "Optional reference to parent transaction"
+      },
+      {
+        "name": "publicId",
+        "type": "string",
+        "doc": "Public identifier of the ledger entry"
+      },
+      {
+        "name": "publicAccountId",
+        "type": "string",
+        "doc": "Associated account public identifier"
+      },
+      {
+        "name": "amount",
+        "type": "long",
+        "doc": "Transaction amount in smallest currency unit"
+      },
+      {
+        "name": "entryType",
+        "type": "string",
+        "doc": "Type of the ledger entry (DEBIT_RECORD, CREDIT_RECORD)"
+      },
+      {
+        "name": "isPending",
+        "type": "string",
+        "doc": "Indicates if the entry is pending (NO, YES)"
+      },
+      {
+        "name": "recordStatus",
+        "type": "string",
+        "doc": "Current status of the record (STAGED, UNBALANCED, BALANCED, ERROR, HOT_ARCHIVE, COLD_ARCHIVE, FOR_DELETION)"
+      },
+      {
+        "name": "externalReferenceId",
+        "type": "string",
+        "doc": "External reference identifier"
+      },
+      {
+        "name": "entryReferenceId",
+        "type": [
+          "null",
+          "string"
+        ],
+        "default": null,
+        "doc": "Optional entry reference identifier"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "doc": "Description of the ledger entry"
+      },
+      {
+        "name": "transactionOn",
+        "type": "long",
+        "doc": "Timestamp when the transaction occurred (epoch millis)"
+      },
+      {
+        "name": "reconciliation",
+        "type": [
+          "null",
+          {
+            "type": "record",
+            "name": "ReconciliationInfo",
+            "fields": [
+              {
+                "name": "reconciledOn",
+                "type": "long",
+                "doc": "Timestamp of reconciliation (epoch millis)"
+              },
+              {
+                "name": "reconciledBy",
+                "type": "string",
+                "doc": "User who performed reconciliation"
+              }
+            ]
+          }
+        ],
+        "default": null,
+        "doc": "Reconciliation information if available"
+      },
+      {
+        "name": "eventDetail",
+        "type": "com.ccs.ledgee.commons.EventDetail",
+        "doc": "Common event details including creation information"
+      }
+    ]
+  }
+]

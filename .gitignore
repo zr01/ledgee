@@ -38,3 +38,6 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+.docker/db/data
+ledgee-events/src

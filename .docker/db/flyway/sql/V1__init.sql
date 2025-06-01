@@ -1,9 +1,27 @@
+CREATE TABLE virtual_accounts
+(
+    id           bigserial primary key,
+    public_id    text        not null,
+    account_id   text        not null,
+    product_code text        not null,
+    metadata     jsonb,
+    created_on   timestamptz not null default current_timestamp,
+    created_by   text        not null,
+    modified_on  timestamptz,
+    modified_by  text,
+    constraint unique_virt_acct_account_id UNIQUE (account_id, product_code),
+    constraint unique_virt_acct_public_id UNIQUE (public_id)
+);
+
+CREATE INDEX idx_virt_accts_public_id on virtual_accounts USING btree (public_id);
+CREATE INDEX idx_virt_accts_account_id_product on virtual_accounts USING btree (account_id, product_code);
+
 CREATE TABLE ledger
 (
     id                    bigserial,
     parent_public_id      text,
     public_id             text        not null,
-    account_id            text        not null,
+    account_id            bigint      not null,
     amount                bigint      not null default 0,
     entry_type            smallint    not null default 0,
     is_pending            smallint    not null default 0,
@@ -13,7 +31,10 @@ CREATE TABLE ledger
     transaction_on        timestamptz not null,
     created_on            timestamptz not null,
     created_by            text        not null,
-    PRIMARY KEY (id, is_pending, record_status)
+    PRIMARY KEY (id, is_pending, record_status),
+    constraint unique_ledger_public_id UNIQUE (public_id, account_id, entry_type, is_pending, record_status),
+    constraint unique_ledger_external_reference_id UNIQUE (external_reference_id, account_id, entry_type, is_pending,
+                                                           record_status)
 ) PARTITION BY RANGE (is_pending, record_status);
 
 -- record_status cardinal values
@@ -45,14 +66,10 @@ CREATE INDEX idx_ldg_ext_ref_id on ledger USING btree (external_reference_id);
 
 CREATE TABLE ledger_audit
 (
-    id                     bigserial not null,
+    id                     bigserial   not null,
     ledger_id              bigint      not null,
     previous_record_status smallint,
     new_record_status      smallint,
-    previous_is_pending    smallint,
-    new_is_pending         smallint,
-    previous_amount        bigint,
-    new_amount             bigint,
     change_type            smallint    not null, -- 0: created, 1: updated, 2: status_changed, 3: archived, 4: marked_deletion
     change_reason          text        not null,
     changed_fields         jsonb,                -- Store changed fields and their values
@@ -65,8 +82,8 @@ CREATE TABLE ledger_audit
 ) PARTITION BY RANGE (created_on);
 
 -- Create partitions by month (example for 2024)
-CREATE TABLE ledger_audit_202505 PARTITION OF ledger_audit
-    FOR VALUES FROM ('2025-05-01') TO ('2025-06-01');
+CREATE TABLE ledger_audit_2025 PARTITION OF ledger_audit
+    FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
 -- CREATE TABLE ledger_audit_202402 PARTITION OF ledger_audit
 --     FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
 -- ... continue for other months

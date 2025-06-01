@@ -1,12 +1,16 @@
 plugins {
+    kotlin("plugin.jpa") version "1.9.25"
     kotlin("jvm") version "1.9.25"
     kotlin("plugin.spring") version "1.9.25"
-    id("org.springframework.boot") version "3.4.5"
+    id("org.springframework.boot") version "3.5.0"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("plugin.jpa") version "1.9.25"
 }
 
-extra["springCloudVersion"] = "2024.0.1"
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2024.0.1")
+    }
+}
 
 dependencies {
 
@@ -19,6 +23,7 @@ dependencies {
 
     // Metrics and Observability
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
     implementation("net.logstash.logback:logstash-logback-encoder:8.1")
 
@@ -29,9 +34,14 @@ dependencies {
     implementation("org.postgresql:postgresql")
 
     // Event Streaming
+    implementation(project(":ledgee-events"))
     implementation("org.apache.kafka:kafka-streams")
     implementation("org.springframework.cloud:spring-cloud-stream")
+    implementation("org.springframework.cloud:spring-cloud-stream-binder-kafka")
     implementation("org.springframework.cloud:spring-cloud-stream-binder-kafka-streams")
+    implementation("org.apache.avro:avro:1.12.0")
+    implementation("io.confluent:kafka-avro-serializer:7.9.1")
+    implementation("io.confluent:kafka-streams-avro-serde:7.9.1")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
@@ -41,12 +51,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.springframework.cloud:spring-cloud-stream-test-binder")
-}
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
-    }
 }
 
 kotlin {
@@ -63,8 +67,4 @@ allOpen {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-tasks.bootBuildImage {
-    builder = "paketobuildpacks/builder-jammy-base:latest"
 }

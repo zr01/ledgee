@@ -1,13 +1,13 @@
 package com.ccs.ledgee.core.controllers
 
-import com.ccs.ledgee.core.repositories.IsPending
-import com.ccs.ledgee.core.repositories.LedgerEntity
+import com.ccs.ledgee.core.controllers.models.LedgerDto
 import com.ccs.ledgee.core.repositories.LedgerEntryType
-import com.ccs.ledgee.core.repositories.LedgerRecordStatus
-import com.ccs.ledgee.core.repositories.LedgerRepository
+import com.ccs.ledgee.core.services.LedgerService
+import com.ccs.ledgee.core.services.SequenceService
 import com.ccs.ledgee.core.utils.uuidStr
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.withLoggingContext
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -21,8 +21,15 @@ private val randomMerchants = (1..5).map { uuidStr() }
 @RestController
 @RequestMapping("/simulator")
 class SimulatorController(
-    private val ledgerRepository: LedgerRepository
+    private val ledgerService: LedgerService,
+    private val sequenceService: SequenceService
 ) {
+
+    @GetMapping("/sequence")
+    fun getSequence() = SimulatorResponse(true, 1)
+        .also {
+            sequenceService.reserveAppAccountIds(5)
+        }
 
     @PostMapping("/records/create")
     fun postCreateRecords(
@@ -37,9 +44,11 @@ class SimulatorController(
             ) {
                 log.info { "Simulator Request received" }
                 CompletableFuture.runAsync {
-                    (1..received.upperBound).forEach { iter ->
+                    (1..received.upperBound).forEach { _ ->
                         val accountId = Random.nextInt(1, modAcctBy) % modAcctBy
+                        val productCode = if (accountId % 2 == 0) "banking" else "creditcard"
                         val merchantId = randomMerchants.random()
+                        val merchProductCode = "business"
                         val amount = Random.nextInt(100, 100000)
                         val isPending = Random.nextInt(100) < 15
                         val externalReferenceId = uuidStr()
@@ -49,25 +58,34 @@ class SimulatorController(
                             "merchantId" to merchantId,
                             "externalReferenceId" to externalReferenceId
                         ) {
-                            val entries = mutableListOf<LedgerEntity>()
-                            val debitRecord = LedgerEntity(
-                                accountId = accountId.toString(),
+                            val debitEntry = LedgerDto(
                                 amount = amount.toLong(),
-                                isPending = if (isPending) IsPending.Yes else IsPending.No,
+                                productCode = productCode,
+                                isPending = isPending,
                                 externalReferenceId = externalReferenceId,
-                                recordStatus = LedgerRecordStatus.Staged,
-                                createdBy = "simulator"
+                                description = uuidStr(),
+                                createdBy = "simulator",
                             )
-                            entries.add(debitRecord)
+
+                            ledgerService.postLedgerEntry(
+                                accountId.toString(),
+                                entryType = LedgerEntryType.DebitRecord,
+                                ledgerDto = debitEntry,
+                                createdBy = debitEntry.createdBy
+                            )
+
                             if (isPair) {
-                                val creditRecord = debitRecord.copy(
-                                    accountId = merchantId,
-                                    entryType = LedgerEntryType.CreditRecord
+                                val creditEntry = debitEntry.copy(
+                                    productCode = merchProductCode
                                 )
-                                entries.add(creditRecord)
+                                ledgerService.postLedgerEntry(
+                                    merchantId,
+                                    entryType = LedgerEntryType.CreditRecord,
+                                    ledgerDto = creditEntry,
+                                    createdBy = creditEntry.createdBy
+                                )
                             }
 
-                            ledgerRepository.saveAll(entries)
                             log.info { "Created records" }
                         }
                     }

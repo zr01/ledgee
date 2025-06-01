@@ -1,2 +1,2 @@
 rootProject.name = "ledgee"
-include("ledger-core")
+include("ledger-core", "ledgee-events")

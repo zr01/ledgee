@@ -1,0 +1,40 @@
+[
+  {
+    "namespace": "com.ccs.ledgee.commons",
+    "name": "EventDetail",
+    "type": "record",
+    "doc": "This contains the common event on/by and metadata",
+    "fields": [
+      {
+        "name": "eventId",
+        "type": "string",
+        "doc": "A unique event id"
+      },
+      {
+        "name": "eventOn",
+        "type": "long",
+        "doc": "Timestamp of when event occurred"
+      },
+      {
+        "name": "eventBy",
+        "type": "string",
+        "doc": "Name of the event source"
+      },
+      {
+        "name": "metadata",
+        "type": {
+          "type": "map",
+          "values": [
+            "string",
+            "int",
+            "long",
+            "float",
+            "double",
+            "boolean"
+          ]
+        },
+        "doc": "Metadata to be attached to this event detail, typically has no business logic, uses a flattened json format"
+      }
+    ]
+  }
+]

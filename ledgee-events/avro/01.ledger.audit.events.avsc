@@ -1,0 +1,79 @@
+{
+  "type": "record",
+  "name": "LedgerAuditEvent",
+  "namespace": "com.ccs.ledgee.events",
+  "doc": "Represents an audit event for ledger entries",
+  "fields": [
+    {
+      "name": "ledgerId",
+      "type": "long",
+      "doc": "Reference to the associated ledger entry"
+    },
+    {
+      "name": "previousRecordStatus",
+      "type": [
+        "null",
+        "int"
+      ],
+      "default": null,
+      "doc": "Previous status of the record"
+    },
+    {
+      "name": "newRecordStatus",
+      "type": "int",
+      "doc": "New status of the record"
+    },
+    {
+      "name": "changeType",
+      "type": "int",
+      "doc": "Type of change performed: 0=created, 1=updated, 2=status_changed, 3=archived, 4=marked_deletion"
+    },
+    {
+      "name": "changeReason",
+      "type": "string",
+      "doc": "Reason for the change"
+    },
+    {
+      "name": "changedFields",
+      "type": [
+        "null",
+        {
+          "type": "map",
+          "values": [
+            "boolean",
+            "int",
+            "long",
+            "string",
+            "float",
+            "double"
+          ]
+        }
+      ],
+      "default": null,
+      "doc": "JSON map containing changed fields and their values"
+    },
+    {
+      "name": "ipAddress",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "IP address of the client that made the change"
+    },
+    {
+      "name": "userAgent",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "User agent of the client that made the change"
+    },
+    {
+      "name": "eventDetail",
+      "type": "com.ccs.ledgee.commons.EventDetail",
+      "doc": "Common event details including creation information"
+    }
+  ]
+}

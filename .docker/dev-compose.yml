@@ -7,7 +7,7 @@ services:
       PGDATA: /var/lib/ledgee/db
     volumes:
       - ./db/create-db.sql:/docker-entrypoint-initdb.d/create-db.sql
-      - db-data:/var/lib/ledgee/db
+    #      - ./db/data:/var/lib/ledgee/db
     ports:
       - "5432:5432"
 
@@ -33,7 +33,3 @@ services:
       FLYWAY_EDITION: community
     volumes:
       - ./db/flyway/sql:/flyway/sql
-
-volumes:
-  db-data:
-    name: db-data

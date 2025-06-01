@@ -1,0 +1,9 @@
+<configuration>
+    <appender name="stash" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+    </appender>
+
+    <root>
+        <appender-ref ref="stash"/>
+    </root>
+</configuration>

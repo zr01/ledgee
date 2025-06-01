@@ -1,11 +1,15 @@
 package com.ccs.ledgee.core.repositories
 
 import com.ccs.ledgee.core.utils.uuidStr
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.OneToOne
 import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
 import org.springframework.data.domain.Pageable
@@ -48,7 +52,10 @@ data class LedgerEntity(
 
     var parentPublicId: String? = null,
     var publicId: String = uuidStr(),
-    var accountId: String = uuidStr(),
+
+    @OneToOne(cascade = [CascadeType.MERGE], fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id")
+    var account: VirtualAccountEntity = VirtualAccountEntity(),
     var amount: Long = 0L,
 
     @Enumerated(EnumType.ORDINAL)
@@ -59,11 +66,14 @@ data class LedgerEntity(
     var recordStatus: LedgerRecordStatus = LedgerRecordStatus.Staged,
 
     var externalReferenceId: String = uuidStr(),
+    var entryReferenceId: String? = null,
     var description: String = entryType.name,
 
     val transactionOn: OffsetDateTime = OffsetDateTime.now(),
     val createdOn: OffsetDateTime = OffsetDateTime.now(),
-    val createdBy: String = LEDGER_DEFAULT_CREATED_BY
+    val createdBy: String = LEDGER_DEFAULT_CREATED_BY,
+    var reconciledOn: OffsetDateTime? = null,
+    var reconciledBy: String? = null
 )
 
 @Repository

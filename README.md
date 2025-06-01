@@ -1,26 +1,33 @@
 # Distributed Double-Entry Ledger System
 
-A scalable, distributed double-entry bookkeeping system built with Jakarta EE and Spring Data JPA, designed to handle high-throughput financial transactions with guaranteed consistency and auditability.
+A scalable, distributed double-entry bookkeeping system built with Jakarta EE and Spring Data JPA, designed to handle
+high-throughput financial transactions with guaranteed consistency and auditability.
 
 ## Overview
 
 This ledger system implements double-entry bookkeeping principles in a distributed environment, ensuring:
+
 - Atomic transaction processing
 - Eventual consistency for balanced books
 - Audit trail preservation
 - Scalable architecture using message-driven second entries
 
-The system is inspired by [Stripe's Ledger design](https://stripe.com/blog/ledger-stripe-system-for-tracking-and-validating-money-movement) and follows established accounting principles described in [Double-Entry Accounting for Engineers](https://anvil.works/blog/double-entry-accounting-for-engineers).
+The system is inspired
+by [Stripe's Ledger design](https://stripe.com/blog/ledger-stripe-system-for-tracking-and-validating-money-movement) and
+follows established accounting principles described
+in [Double-Entry Accounting for Engineers](https://anvil.works/blog/double-entry-accounting-for-engineers).
 
 ## Core Concepts
 
 ### Double-Entry Model
+
 - Every transaction affects at least two accounts
 - Total debits must equal total credits
 - Accounts maintain running balances
 - All records are immutable (append-only)
 
 ### Transaction Processing Flow
+
 1. Synchronous first entry processing
 2. Message publication for corresponding entries
 3. Asynchronous processing of balancing entries
@@ -38,6 +45,7 @@ The system is inspired by [Stripe's Ledger design](https://stripe.com/blog/ledge
 ## Getting Started
 
 ### Prerequisites
+
 ```bash
 - Java 21 or higher
 - Maven 3.8+
@@ -45,11 +53,13 @@ The system is inspired by [Stripe's Ledger design](https://stripe.com/blog/ledge
 ```
 
 ### Building the Project
+
 ```bash
 mvn clean install
 ```
 
 ### Running Tests
+
 ```bash
 mvn test
 ```
@@ -57,6 +67,7 @@ mvn test
 ## Extension Points
 
 The system is designed to be extensible through additional modules for specific needs:
+
 - Custom validation rules
 - Different messaging implementations
 - Additional account types

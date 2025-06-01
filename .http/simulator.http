@@ -1,7 +1,10 @@
-POST http://localhost:8080/simulator/records/create
+POST http://localhost:8080/simulator/records/create?upper_bound=10000
 
 ### Create millions of records
 POST http://localhost:8080/simulator/records/create?upper_bound=1000000
 
 ### Generate no CR pairs
 POST http://localhost:8080/simulator/records/create?upper_bound=10000&is_pair=false
+
+### Actuator
+GET http://localhost:8080/actuator/metrics/kafka.consumer.fetch.manager.records.lag

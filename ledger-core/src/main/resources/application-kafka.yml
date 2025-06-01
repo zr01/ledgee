@@ -1,0 +1,57 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      properties:
+        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+        value.serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+        value.subject.name.strategy: io.confluent.kafka.serializers.subject.TopicNameStrategy
+        retries: 3
+        acks: -1
+    consumer:
+      properties:
+        key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value.deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+        value.subject.name.strategy: io.confluent.kafka.serializers.subject.TopicNameStrategy
+    properties:
+      schema.registry.url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8081}
+      auto.register.schemas: true
+      processing.guarantee: exactly_once_v2
+
+  cloud:
+    function:
+      definition: supplierAuditEvents;supplierLedgerEvents;reconcileConsumer
+    stream:
+      bindings:
+        supplierAuditEvents-out-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-audit-events
+          content-type: application/*+avro
+          producer:
+            use-native-encoding: true
+        supplierLedgerEvents-out-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-events
+          content-type: application/*+avro
+          producer:
+            use-native-encoding: true
+        reconcileConsumer-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-events
+          content-type: application/*+avro
+          consumer:
+            use-native-decoding: true
+            concurrency: 5
+
+      kafka:
+        streams:
+          bindings:
+            reconcileConsumer-in-0:
+              consumer:
+                application-id: ${ENV_PREFIX:local}-bookkeeping-reconcile-consumer-v0.10
+
+          binder:
+            auto-create-topics: true
+            configuration:
+              default:
+                key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                value.serde: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
+        binder:
+          min-partition-count: 5
