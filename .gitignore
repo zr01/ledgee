@@ -41,3 +41,5 @@ out/
 
 .docker/db/data
 ledgee-events/src
+
+node_modules
