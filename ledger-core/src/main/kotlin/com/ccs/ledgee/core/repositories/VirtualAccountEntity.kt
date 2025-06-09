@@ -1,9 +1,12 @@
 package com.ccs.ledgee.core.repositories
 
 import com.ccs.ledgee.core.utils.uuidStr
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
+import jakarta.persistence.OneToMany
 import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
 import org.hibernate.annotations.JdbcTypeCode
@@ -27,7 +30,7 @@ data class VirtualAccountEntity(
     var publicId: String = uuidStr(),
     var accountId: String = uuidStr(),
     var productCode: String = "banking",
-
+    var currency: String = "AUD",
     @JdbcTypeCode(SqlTypes.JSON)
     var metadata: VirtualAccountMetadata? = null, // JSONB field stored as String
 
@@ -35,7 +38,18 @@ data class VirtualAccountEntity(
     val createdBy: String = VIRTUAL_ACCOUNTS_DEFAULT_CREATED_BY,
     var modifiedOn: OffsetDateTime? = null,
     var modifiedBy: String? = null
-)
+) {
+    @OneToMany(
+        mappedBy = "virtualAccount",
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+        fetch = FetchType.LAZY
+    )
+    var balances: MutableSet<VirtualAccountBalanceEntity> = mutableSetOf(
+        VirtualAccountBalanceEntity(virtualAccount = this, isProjected = BalanceType.Actual),
+        VirtualAccountBalanceEntity(virtualAccount = this, isProjected = BalanceType.Projected),
+    )
+}
 
 data class VirtualAccountMetadata(
     var bsb: String? = null

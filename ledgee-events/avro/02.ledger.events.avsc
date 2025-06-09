@@ -1,15 +1,10 @@
 [
   {
     "type": "record",
-    "name": "LedgerEvent",
+    "name": "LedgerEntryRecordedEvent",
     "namespace": "com.ccs.ledgee.events",
     "doc": "Represents a ledger entry event in the timeseries",
     "fields": [
-      {
-        "name": "id",
-        "type": "long",
-        "doc": "Internal identifier of the ledger entry"
-      },
       {
         "name": "parentPublicId",
         "type": [
@@ -101,6 +96,67 @@
         "name": "eventDetail",
         "type": "com.ccs.ledgee.commons.EventDetail",
         "doc": "Common event details including creation information"
+      }
+    ]
+  },
+  {
+    "type": "record",
+    "name": "LedgerEntriesReconciledEvent",
+    "namespace": "com.ccs.ledgee.events",
+    "doc": "Represents a ledger entry event in the timeseries",
+    "fields": [
+      {
+        "name": "debitEntry",
+        "type": [
+          "null",
+          "com.ccs.ledgee.events.LedgerEntryRecordedEvent"
+        ],
+        "default": null
+      },
+      {
+        "name": "creditEntry",
+        "type": [
+          "null",
+          "com.ccs.ledgee.events.LedgerEntryRecordedEvent"
+        ],
+        "default": null
+      },
+      {
+        "name": "incorrectDebits",
+        "type": [
+          "null",
+          {
+            "type": "array",
+            "items": [
+              "com.ccs.ledgee.events.LedgerEntryRecordedEvent"
+            ]
+          }
+        ],
+        "default": null,
+        "doc": "List of incorrect debit entries that could not be reconciled due to errors like excess records or amount mismatch"
+      },
+      {
+        "name": "incorrectCredits",
+        "type": [
+          "null",
+          {
+            "type": "array",
+            "items": [
+              "com.ccs.ledgee.events.LedgerEntryRecordedEvent"
+            ]
+          }
+        ],
+        "default": null,
+        "doc": "List of incorrect credit entries that could not be reconciled due to errors like excess records or amount mismatch"
+      },
+      {
+        "name": "reconciliationStatus",
+        "type": [
+          "null",
+          "string"
+        ],
+        "doc": "Status of the record (Staged, Unbalanced, Balanced, Error, HotArchive, ColdArchive, ForDeletion)",
+        "default": null
       }
     ]
   }

@@ -12,7 +12,7 @@ services:
       - "5432:5432"
 
   kafka:
-    image: landoop/fast-data-dev
+    image: lensesio/fast-data-dev
     container_name: kafka-aio
     environment:
       ADV_HOST: "127.0.0.1"

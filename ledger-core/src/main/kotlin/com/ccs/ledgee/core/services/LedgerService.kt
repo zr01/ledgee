@@ -2,7 +2,7 @@ package com.ccs.ledgee.core.services
 
 import com.ccs.ledgee.commons.EventDetail
 import com.ccs.ledgee.core.controllers.models.LedgerDto
-import com.ccs.ledgee.core.events.EventPublisherService
+import com.ccs.ledgee.core.repositories.BalanceType
 import com.ccs.ledgee.core.repositories.ChangeType
 import com.ccs.ledgee.core.repositories.IsPending
 import com.ccs.ledgee.core.repositories.LedgerEntity
@@ -10,12 +10,18 @@ import com.ccs.ledgee.core.repositories.LedgerEntryType
 import com.ccs.ledgee.core.repositories.LedgerRepository
 import com.ccs.ledgee.core.repositories.VirtualAccountEntity
 import com.ccs.ledgee.core.utils.IdGenerator
+import com.ccs.ledgee.core.utils.Iso4217Currency
+import com.ccs.ledgee.core.utils.amountFor
 import com.ccs.ledgee.core.utils.uuidStr
 import com.ccs.ledgee.events.LedgerAuditEvent
-import com.ccs.ledgee.events.LedgerEvent
+import com.ccs.ledgee.events.LedgerEntryRecordedEvent
 import com.ccs.ledgee.events.ReconciliationInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.transaction.Transactional
+import org.hibernate.exception.JDBCConnectionException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.springframework.retry.annotation.Backoff
+import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
 
@@ -23,34 +29,43 @@ private val log = KotlinLogging.logger { }
 
 interface LedgerService {
 
-    @Transactional
+    @Retryable(
+        value = [
+            ObjectOptimisticLockingFailureException::class,
+            JDBCConnectionException::class
+        ],
+        maxAttempts = 1000,
+        backoff = Backoff(1L)
+    )
     fun postLedgerEntry(
         accountId: String,
         entryType: LedgerEntryType,
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity
+
+    fun postAuditEntry(entry: LedgerEntity)
 }
 
 @Service
+@Transactional
 class LedgerServiceImpl(
     private val ledgerRepository: LedgerRepository,
     private val virtualAccountService: VirtualAccountService,
-    private val eventPublisherService: EventPublisherService,
     sequenceService: SequenceService
 ) : LedgerService {
 
     private val drIdGenerator = IdGenerator(
         prefix = "dr"
     ) {
-        val range = sequenceService.reserveAppLedgerIds(100)
+        val range = sequenceService.reserveAppLedgerIds(50)
         range[1] to range[0]
     }
 
     private val crIdGenerator = IdGenerator(
         prefix = "cr"
     ) {
-        val range = sequenceService.reserveAppLedgerIds(100)
+        val range = sequenceService.reserveAppLedgerIds(50)
         range[1] to range[0]
     }
 
@@ -60,10 +75,10 @@ class LedgerServiceImpl(
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity {
-        val publicId = if (entryType == LedgerEntryType.DebitRecord)
-            drIdGenerator.nextVal()
+        val (publicId, sign) = if (entryType == LedgerEntryType.DebitRecord)
+            drIdGenerator.nextVal() to (-1).toBigDecimal()
         else
-            crIdGenerator.nextVal()
+            crIdGenerator.nextVal() to 1.toBigDecimal()
 
         val account = virtualAccountService.retrieveOrCreateAccount(
             accountId = accountId,
@@ -77,17 +92,22 @@ class LedgerServiceImpl(
             createdBy
         )
 
+        // Update balance
+        val actualBalance = account.balances.first { it.isProjected == BalanceType.Actual }
+        val c = Iso4217Currency.getCurrency(account.currency)
+        val movement = entry.amount.amountFor(c) * sign
+        if (entry.isPending == IsPending.Yes)
+            actualBalance.pendingBalance += movement
+        else
+            actualBalance.availableBalance += movement
+
         val saveToDb = ledgerRepository.save(entry)
-        eventPublisherService
-            .raiseLedgerEntryEvent(
-                saveToDb.account.publicId,
-                saveToDb.toLedgerEvent()
-            )
-        eventPublisherService
-            .raiseAuditEvent(
-                saveToDb.account.publicId,
-                saveToDb.toCreatedAuditEvent()
-            )
+//        eventPublisherService
+//            .raiseAuditEvent(
+//                saveToDb.account.publicId,
+//                saveToDb.toCreatedAuditEvent()
+//            )
+
         log.atInfo {
             payload = mapOf(
                 "publicAccountId" to account.publicId,
@@ -97,13 +117,16 @@ class LedgerServiceImpl(
         }
         return saveToDb
     }
+
+    override fun postAuditEntry(entry: LedgerEntity) {
+        TODO("Not yet implemented")
+    }
 }
 
-fun LedgerEntity.toLedgerEvent(
+fun LedgerEntity.toLedgerEntryRecordedEvent(
     reconciliationInfo: ReconciliationInfo? = null,
     eventBy: String = createdBy
-): LedgerEvent = LedgerEvent.newBuilder()
-    .setId(id)
+): LedgerEntryRecordedEvent = LedgerEntryRecordedEvent.newBuilder()
     .setParentPublicId(parentPublicId)
     .setPublicId(publicId)
     .setPublicAccountId(account.publicId)

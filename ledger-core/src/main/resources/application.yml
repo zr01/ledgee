@@ -35,6 +35,6 @@ ledger:
 
 logging:
   level:
-    root: WARN
-    com.ccs: DEBUG
+    root: ERROR
+    com.ccs: WARN
 #  config: classpath:logback-logstash.xml

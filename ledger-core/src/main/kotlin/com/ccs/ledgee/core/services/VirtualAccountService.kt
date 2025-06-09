@@ -1,8 +1,14 @@
 package com.ccs.ledgee.core.services
 
+import com.ccs.ledgee.core.repositories.BalanceType
+import com.ccs.ledgee.core.repositories.IsPending
+import com.ccs.ledgee.core.repositories.LedgerEntryType
+import com.ccs.ledgee.core.repositories.VirtualAccountBalanceRepository
 import com.ccs.ledgee.core.repositories.VirtualAccountEntity
 import com.ccs.ledgee.core.repositories.VirtualAccountsRepository
 import com.ccs.ledgee.core.utils.IdGenerator
+import com.ccs.ledgee.core.utils.Iso4217Currency
+import com.ccs.ledgee.core.utils.amountFor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.transaction.Transactional
 import org.springframework.dao.DataIntegrityViolationException
@@ -17,19 +23,35 @@ interface VirtualAccountService {
         value = [
             DataIntegrityViolationException::class
         ],
-        backoff = Backoff(10L)
+        backoff = Backoff(10L),
+        maxAttempts = 50
     )
-    @Transactional
     fun retrieveOrCreateAccount(
         accountId: String,
         productCode: String,
         createdBy: String
     ): VirtualAccountEntity
+
+    @Retryable(
+        value = [
+            IllegalStateException::class
+        ],
+        backoff = Backoff(10L),
+        maxAttempts = 50
+    )
+    fun updateAccountBalance(
+        publicAccountId: String,
+        entryType: LedgerEntryType,
+        isPending: IsPending,
+        amount: Long
+    )
 }
 
 @Service
+@Transactional
 class VirtualAccountServiceImpl(
     private val virtualAccountsRepository: VirtualAccountsRepository,
+    private val virtualAccountBalanceRepository: VirtualAccountBalanceRepository,
     sequenceService: SequenceService
 ) : VirtualAccountService {
 
@@ -62,16 +84,47 @@ class VirtualAccountServiceImpl(
                     accountId = accountId.lowercase(),
                     productCode = productCode.lowercase(),
                     createdBy = createdBy
-                ).also {
+                ).also { created ->
                     log.atInfo {
-                        message = "Created Account"
+                        message = "Created Account & Balance Records"
                         payload = mapOf(
-                            "publicAccountId" to it.publicId,
-                            "accountId" to it.accountId
+                            "publicAccountId" to created.publicId,
+                            "accountId" to created.accountId
                         )
                     }
                 }
             )
         return virtualAccount
+    }
+
+    override fun updateAccountBalance(
+        publicAccountId: String,
+        entryType: LedgerEntryType,
+        isPending: IsPending,
+        amount: Long
+    ) {
+        val sign = if (entryType == LedgerEntryType.DebitRecord)
+            (-1).toBigDecimal()
+        else 1.toBigDecimal()
+        val account = virtualAccountsRepository.findByPublicId(publicAccountId)
+            ?: throw IllegalStateException("Virtual account not found for public id $publicAccountId")
+        val currency = account.currency.let { Iso4217Currency.getCurrency(it) }
+        val amount = amount.amountFor(currency) * sign
+
+        if (isPending == IsPending.Yes) {
+            virtualAccountBalanceRepository
+                .updatePendingBalance(
+                    account.id,
+                    BalanceType.Projected.ordinal,
+                    amount
+                )
+        } else {
+            virtualAccountBalanceRepository
+                .updateAvailableBalance(
+                    account.id,
+                    BalanceType.Projected.ordinal,
+                    amount
+                )
+        }
     }
 }

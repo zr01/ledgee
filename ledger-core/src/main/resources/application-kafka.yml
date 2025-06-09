@@ -20,7 +20,7 @@ spring:
 
   cloud:
     function:
-      definition: supplierAuditEvents;supplierLedgerEvents;reconcileConsumer
+      definition: supplierAuditEvents;supplierLedgerEvents;ledgerRerouteProcessor;bookkeepingWaitForReconciliationProcessor;reconciledRecordsConsumer;projectedAccountBalanceConsumer;reconciliationFailedConsumer
     stream:
       bindings:
         supplierAuditEvents-out-0:
@@ -29,23 +29,81 @@ spring:
           producer:
             use-native-encoding: true
         supplierLedgerEvents-out-0:
-          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-events
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-records
           content-type: application/*+avro
           producer:
             use-native-encoding: true
-        reconcileConsumer-in-0:
-          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-events
+        ledgerRerouteProcessor-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-records
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 15
+        ledgerRerouteProcessor-out-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-by-ref-records
+          content-type: application/*+avro
+          producer:
+            partition-count: 30
+            use-native-encoding: true
+
+        bookkeepingWaitForReconciliationProcessor-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-by-ref-records
+          content-type: application/*+avro
+          consumer:
+            use-native-decoding: true
+            concurrency: 15
+        bookkeepingWaitForReconciliationProcessor-out-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-waiting-records
+          content-type: application/*+avro
+          producer:
+            partition-count: 30
+            use-native-encoding: true
+        bookkeepingWaitForReconciliationProcessor-out-1:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-unbalanced-records
+          content-type: application/*+avro
+          producer:
+            partition-count: 30
+            use-native-encoding: true
+
+        reconciledRecordsConsumer-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-waiting-records
+          content-type: application/*+avro
+          consumer:
+            use-native-decoding: true
+            concurrency: 15
+
+        reconciliationFailedConsumer-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-unbalanced-records
+          content-type: application/*+avro
+          consumer:
+            use-native-decoding: true
+            concurrency: 15
+
+        projectedAccountBalanceConsumer-in-0:
+          destination: ${ENV_PREFIX:local}-bookkeeping-ledger-records
+          content-type: application/*+avro
+          consumer:
+            use-native-decoding: true
+            concurrency: 15
 
       kafka:
         streams:
           bindings:
-            reconcileConsumer-in-0:
+            reconciledRecordsConsumer-in-0:
               consumer:
-                application-id: ${ENV_PREFIX:local}-bookkeeping-reconcile-consumer-v0.10
+                application-id: ${ENV_PREFIX:local}-bookkeeping-balance-records-join-processor-v0.23
+            bookkeepingWaitForReconciliationProcessor-in-0:
+              consumer:
+                application-id: ${ENV_PREFIX:local}-bookkeeping-ledger-wait-processor-v0.23
+            ledgerRerouteProcessor-in-0:
+              consumer:
+                application-id: ${ENV_PREFIX:local}-bookkeeping-ledger-reroute-processor-v0.23
+            projectedAccountBalanceConsumer-in-0:
+              consumer:
+                application-id: ${ENV_PREFIX:local}-bookkeeping-account-balance-consumer-v0.23
+            reconciliationFailedConsumer-in-0:
+              consumer:
+                application-id: ${ENV_PREFIX:local}-bookkeeping-ledger-reconcile-fail-consumer-v0.23
 
           binder:
             auto-create-topics: true
@@ -54,4 +112,5 @@ spring:
                 key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
                 value.serde: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
         binder:
-          min-partition-count: 5
+          min-partition-count: 30
+          auto-add-partitions: true

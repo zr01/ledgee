@@ -1,43 +1,61 @@
 package com.ccs.ledgee.core.utils
 
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import org.sqids.Sqids
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class IdGenerator(
     private val prefix: String = "dr",
-    private val digits: Int = 7,
+    minChars: Int = 4,
     private val reserveIds: () -> Pair<Long, Long>
 ) {
     var range: Pair<Long, Long> = reserveIds()
     var counter: AtomicLong = AtomicLong(range.first)
-    var isRefreshing = false
+    private val sqids = Sqids(
+        alphabet = "ABCDFGHKMNPRSTVWX23456789",
+        minLength = minChars
+    )
 
+    @Synchronized
     private fun AtomicLong.refreshGetAndIncrement(): Long {
         val seq = getAndIncrement()
-        while (isRefreshing && seq >= range.second) {
-            TimeUnit.MILLISECONDS.sleep(1)
-        }
-
         if (seq >= range.second) {
-            isRefreshing = true
             range = reserveIds()
-            isRefreshing = false
+            counter.set(range.first)
         }
         return seq
     }
 
-    fun nextVal(): String =
-        "$prefix${currentDate()}${counter.refreshGetAndIncrement().toString().padStart(digits, '0')}"
-}
+    private fun formPrefix(
+        subPrefix: String,
+        isPrefixHyphenated: Boolean
+    ) = when {
+        isPrefixHyphenated && subPrefix.isNotBlank() ->
+            "$prefix-$subPrefix-"
 
-fun currentDate(
-    zoneId: ZoneId = ZoneId.systemDefault()
-): String = LocalDate.now(zoneId)
-    .format(DateTimeFormatter.ofPattern("yyMMdd"))
+        isPrefixHyphenated && subPrefix.isBlank() ->
+            "$prefix-"
+
+        !isPrefixHyphenated && subPrefix.isNotBlank() ->
+            "$prefix$subPrefix"
+
+        else -> prefix
+    }
+
+    fun nextVal(
+        compositeKey: Long? = null,
+        subPrefix: String = "",
+        isPrefixHyphenated: Boolean = true
+    ): String = sqids.encode(
+        if (compositeKey == null)
+            listOf(counter.refreshGetAndIncrement())
+        else
+            listOf(counter.refreshGetAndIncrement(), compositeKey)
+    )
+        .let { encodedStr ->
+            "${formPrefix(subPrefix, isPrefixHyphenated)}$encodedStr"
+        }
+}
 
 fun uuid(): UUID = UUID.randomUUID()
 fun uuidStr(): String = uuid().toString()

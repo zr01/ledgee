@@ -34,8 +34,10 @@ enum class IsPending {
 
 enum class LedgerRecordStatus {
     Staged,
-    Unbalanced,
+    WaitingForPair,
     Balanced,
+    Unbalanced,
+    Excess,
     Error,
     HotArchive,
     ColdArchive,
@@ -79,22 +81,6 @@ data class LedgerEntity(
 @Repository
 interface LedgerRepository : JpaRepository<LedgerEntity, Long>, PagingAndSortingRepository<LedgerEntity, Long> {
 
-    @Query(
-        nativeQuery = true, value = """
-        SELECT 
-            distinct external_reference_id 
-        FROM ledger
-        WHERE
-            is_pending = :isPending
-            AND record_status = 0
-            AND transaction_on < current_timestamp - (interval '1 minutes' * :pastMinutes)
-    """
-    )
-    fun retrieveAllExternalIdsInThePastInMinutesAndPendingIs(
-        pastMinutes: Int = 60,
-        isPending: Short = 0,
-        page: Pageable = Pageable.ofSize(10000)
-    ): List<String>
-
+    fun findByPublicId(publicId: String): LedgerEntity?
     fun findAllByExternalReferenceId(externalReferenceId: String): List<LedgerEntity>
 }

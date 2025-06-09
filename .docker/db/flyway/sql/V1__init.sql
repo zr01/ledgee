@@ -4,17 +4,18 @@ CREATE TABLE virtual_accounts
     public_id    text        not null,
     account_id   text        not null,
     product_code text        not null,
+    currency     text        not null default 'AUD',
     metadata     jsonb,
     created_on   timestamptz not null default current_timestamp,
     created_by   text        not null,
     modified_on  timestamptz,
     modified_by  text,
-    constraint unique_virt_acct_account_id UNIQUE (account_id, product_code),
+    constraint unique_virt_acct_account_id UNIQUE (account_id, product_code, currency),
     constraint unique_virt_acct_public_id UNIQUE (public_id)
 );
 
 CREATE INDEX idx_virt_accts_public_id on virtual_accounts USING btree (public_id);
-CREATE INDEX idx_virt_accts_account_id_product on virtual_accounts USING btree (account_id, product_code);
+CREATE INDEX idx_virt_accts_account_id_product on virtual_accounts USING btree (account_id, product_code, currency);
 
 CREATE TABLE ledger
 (
@@ -38,25 +39,29 @@ CREATE TABLE ledger
 ) PARTITION BY RANGE (is_pending, record_status);
 
 -- record_status cardinal values
--- STAGED, UNBALANCED, BALANCED, ERROR, HOT_ARCHIVE, COLD_ARCHIVE, FOR_DELETION
+-- Staged, WaitingForPair, Balanced, Unbalanced, Excess, Error, HotArchive, ColdArchive, ForDeletion
 
 -- pending partitions
 CREATE TABLE ledger_staged_pending PARTITION OF ledger FOR VALUES FROM (1, 0) TO (1, 1);
-CREATE TABLE ledger_unbalanced_pending PARTITION OF ledger FOR VALUES FROM (1, 1) TO (1, 2);
+CREATE TABLE ledger_waiting_for_pair_pending PARTITION OF LEDGER FOR VALUES FROM (1, 1) TO (1, 2);
 CREATE TABLE ledger_balanced_pending PARTITION OF ledger FOR VALUES FROM (1, 2) TO (1, 3);
-CREATE TABLE ledger_error_pending PARTITION OF ledger FOR VALUES FROM (1, 3) TO (1, 4);
-CREATE TABLE ledger_hot_archive_pending PARTITION OF ledger FOR VALUES FROM (1, 4) TO (1, 5);
-CREATE TABLE ledger_cold_archive_pending PARTITION OF ledger FOR VALUES FROM (1, 5) TO (1, 6);
-CREATE TABLE ledger_for_deletion_pending PARTITION OF ledger FOR VALUES FROM (1, 6) TO (1, 7);
+CREATE TABLE ledger_unbalanced_pending PARTITION OF ledger FOR VALUES FROM (1, 3) TO (1, 4);
+CREATE TABLE ledger_excess_pending PARTITION OF ledger FOR VALUES FROM (1, 4) TO (1, 5);
+CREATE TABLE ledger_error_pending PARTITION OF ledger FOR VALUES FROM (1, 5) TO (1, 6);
+CREATE TABLE ledger_hot_archive_pending PARTITION OF ledger FOR VALUES FROM (1, 6) TO (1, 7);
+CREATE TABLE ledger_cold_archive_pending PARTITION OF ledger FOR VALUES FROM (1, 7) TO (1, 8);
+CREATE TABLE ledger_for_deletion_pending PARTITION OF ledger FOR VALUES FROM (1, 8) TO (1, 9);
 
 -- money movement partitions
 CREATE TABLE ledger_staged PARTITION OF ledger FOR VALUES FROM (0, 0) TO (0, 1);
-CREATE TABLE ledger_unbalanced PARTITION OF ledger FOR VALUES FROM (0, 1) TO (0, 2);
+CREATE TABLE ledger_waiting_for_pair PARTITION OF LEDGER FOR VALUES FROM (0, 1) TO (0, 2);
 CREATE TABLE ledger_balanced PARTITION OF ledger FOR VALUES FROM (0, 2) TO (0, 3);
-CREATE TABLE ledger_error PARTITION OF ledger FOR VALUES FROM (0, 3) TO (0, 4);
-CREATE TABLE ledger_hot_archive PARTITION OF ledger FOR VALUES FROM (0, 4) TO (0, 5);
-CREATE TABLE ledger_cold_archive PARTITION OF ledger FOR VALUES FROM (0, 5) TO (0, 6);
-CREATE TABLE ledger_for_deletion PARTITION OF ledger FOR VALUES FROM (0, 6) TO (0, 7);
+CREATE TABLE ledger_unbalanced PARTITION OF ledger FOR VALUES FROM (0, 3) TO (0, 4);
+CREATE TABLE ledger_excess PARTITION OF ledger FOR VALUES FROM (0, 4) TO (0, 5);
+CREATE TABLE ledger_error PARTITION OF ledger FOR VALUES FROM (0, 5) TO (0, 6);
+CREATE TABLE ledger_hot_archive PARTITION OF ledger FOR VALUES FROM (0, 6) TO (0, 7);
+CREATE TABLE ledger_cold_archive PARTITION OF ledger FOR VALUES FROM (0, 7) TO (0, 8);
+CREATE TABLE ledger_for_deletion PARTITION OF ledger FOR VALUES FROM (0, 8) TO (0, 9);
 
 -- Indexes for the ledgers
 CREATE INDEX idx_ldg_acct on ledger USING btree (account_id, entry_type, record_status, external_reference_id);

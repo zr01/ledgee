@@ -2,127 +2,127 @@
 
 ## Overview
 
-The ledger entry system implements a double-entry bookkeeping system with asynchronous
-reconciliation. It handles two types of entries: `DebitRecord` and `CreditRecord`, which
-are designed to work in pairs through a reconciliation process.
+The ledger entry system implements a double-entry bookkeeping system with stream-based
+processing and reconciliation. It handles credit and debit records through a series
+of stream processing stages that ensure proper pairing and balance verification.
 
 ## Entry Types
 
-### DebitRecord
+### Ledger Record
+- Initial entry point for all transactions
+- Contains account ID, external reference ID, amount, and CR/DR indicator
+- Represents the raw transaction before processing
 
-- Represents a debit entry in the ledger
-- Created immediately when a debit transaction occurs
-- The initial status is "Staged"
-- Remains unreconciled until a matching CreditRecord is processed
-- Identified by a unique external reference ID
+### DebitRecord
+- Filtered from initial ledger record
+- Keyed by external reference ID
+- Contains account ID and debit amount
+- Awaits matching credit record for reconciliation
 
 ### CreditRecord
+- Filtered from initial ledger record
+- Keyed by external reference ID
+- Contains account ID and credit amount
+- Participates in reconciliation process
 
-- Represents a credit entry in the ledger
-- Triggers an asynchronous reconciliation workflow
-- Must match with a corresponding DebitRecord
-- Uses the same external reference ID as its matching DebitRecord
-- Initiates the reconciliation process automatically
+## Stream Processing Stages
 
-## Reconciliation Process
+1. **Initial Record (ledger-record)**
+   - Entry point for all transactions
+   - Key: account ID
+   - Contains: external-ref-id, amount, cr/dr indicator
 
-When a CreditRecord is created, the system:
+2. **Filter Stage (ledger-filter)**
+   - Splits records into credit and debit streams
+   - Routes based on cr/dr indicator
+   - Maintains all original transaction data
 
-1. Searches for the matching DebitRecord using the external reference ID
-2. Validates the amount of the record match
-3. Updates the status of both records to "Balanced"
-4. Records reconciliation timestamp and user
+3. **Separated Records (ledger-debit-record, ledger-credit-record)**
+   - Records are re-keyed by external reference ID
+   - Maintains account ID and amount information
+   - Prepared for joining process
+
+4. **Join Stage (ledger-join)**
+   - Matches credit and debit records by external reference ID
+   - Accumulates records until pairs are complete
+   - Forwards complete pairs for reconciliation
+
+5. **Reconciliation Stage (ledger-reconciliation)**
+   - Performs zero-sum verification
+   - Routes records to appropriate outcome streams
+   - Handles both successful and failed reconciliations
+
+6. **Final States**
+   - Balanced: Successfully reconciled pairs
+   - Unbalanced: Failed reconciliation cases
 
 ## Status Flow
 
-- **Staged**: Initial status for new entries
-- **Unbalanced**: Entry waiting for its matching pair
-- **Balanced**: Successfully reconciled with matching entry
-- **Error**: Reconciliation failed or other issues detected
-- **HotArchive**: Recent reconciled records
-- **ColdArchive**: Old reconciled records
-- **ForDeletion**: Marked for removal
-
-## Sequence Diagram
-
-```plantuml 
-@startuml
-skinparam backgroundColor white
-skinparam sequenceMessageAlign center
-skinparam sequence {
-    ParticipantBackgroundColor LightBlue
-    ParticipantBorderColor DarkBlue
-    ArrowColor DarkBlue
-}
-
-participant "Client" as C
-participant "API" as A
-participant "Ledger Service" as L
-participant "Reconciliation\nService" as R
-database "Database" as D
-
-== Debit Record Creation ==
-C -> A: POST /api/v1/accounts/{id}/DebitRecord
-activate A
-A -> L: Create DebitRecord
-activate L
-L -> D: Save Entry (Status: Staged)
-L --> A: Return DebitRecord
-A --> C: 201 Created
-deactivate A
-deactivate L
-
-== Credit Record Creation & Reconciliation ==
-C -> A: POST /api/v1/accounts/{id}/CreditRecord
-activate A
-A -> L: Create CreditRecord
-activate L
-L -> D: Save Entry (Status: Staged)
-deactivate R
-L --> A: Return CreditRecord
-A --> C: 201 Created
-deactivate A
-deactivate L
-
-== Reconciliation ==
-alt Asynchronous Event Trigger from CreditRecord
-L -> R: Trigger Reconciliation
-activate R
-R -> D: Find matching DebitRecord\n(by externalReferenceId)
-R -> R: Validate amounts
-R -> D: Update both entries\n(Status: Balanced)
-R -> D: Record reconciliation timestamp
-R --> L: Reconciliation Complete
-end alt
-
-@enduml
-```
+- **Staged**: Initial state in ledger-record
+- **Filtered**: After CR/DR separation
+- **Joined**: Paired in join stage
+- **Reconciled**: Zero-sum verified
+- **Balanced**: Successfully matched and verified
+- **Unbalanced**: Failed verification
 
 ## Important Characteristics
 
-1. **Immutability**
-    - Entries are never modified after creation
-    - Status changes are tracked and audited
-    - All changes maintain historical records
+1. **Stream Processing**
+   - Event-driven architecture
+   - Stateful processing for joins
+   - Deterministic record routing
 
-2. **Pairing**
-    - Each DebitRecord must have a matching CreditRecord
-    - Matching is done through external reference IDs
-    - Both records must have matching amounts
+2. **Keying Strategy**
+   - Initial routing by account ID
+   - Join processing by external reference ID
+   - Maintains transaction context throughout
 
-3. **Asynchronous Processing**
-    - Reconciliation happens asynchronously
-    - System can handle high volumes of transactions
-    - Eventual consistency is guaranteed
+3. **Balance Verification**
+   - Zero-sum validation for paired records
+   - Automatic routing based on verification results
+   - Clear separation of balanced and unbalanced outcomes
 
-4. **Audit Trail**
-    - All entries maintain creation timestamps
-    - Reconciliation timestamps are recorded
-    - Creator and reconciler information is preserved
+4. **Error Handling**
+   - Unbalanced records captured for investigation
+   - Clear error state identification
+   - Maintains original transaction context
 
-## Data Retention
+## Data Flow
 
-- Active records remain in the main tables
-- Reconciled records are moved to hot archive after a period
-- Old records are moved to cold archive for long-term storage
-- Records marked for deletion are handled by cleanup processes
+```plantuml
+@startuml 
+[*] --> Staged: New Record 
+Staged --> Filtered: CR/DR Split 
+Filtered --> Joined: External Ref ID 
+Joined --> Reconciled: Zero-Sum Check 
+Reconciled --> Balanced: Success 
+Reconciled --> Unbalanced: Failure 
+Balanced --> [*] 
+Unbalanced --> [*] 
+@enduml
+```
+
+## Processing Guarantees
+
+1. **Exactly-Once Processing**
+   - Stream processing ensures no duplicates
+   - Stateful operations maintain consistency
+   - Deterministic outcomes for identical inputs
+
+2. **Order Preservation**
+   - External reference ID maintains pairing
+   - Time-based processing within stages
+   - Consistent state transitions
+
+3. **Error Recovery**
+   - Clear error states
+   - Maintained transaction context
+   - Investigate-able unbalanced outcomes
+
+## Monitoring Considerations
+
+- Stream lag metrics per stage
+- Join completion rates
+- Balance verification success rates
+- Unbalanced record monitoring
+- Processing latency per stage

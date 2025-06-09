@@ -6,12 +6,8 @@ import org.springframework.context.annotation.Bean
 import org.springframework.kafka.support.KafkaHeaders
 import org.springframework.messaging.Message
 import org.springframework.messaging.support.MessageBuilder
-import org.springframework.retry.RetryCallback
-import org.springframework.retry.RetryContext
-import org.springframework.retry.RetryListener
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
-import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Sinks
@@ -24,7 +20,6 @@ interface EventPublisherService {
         value = [EventPublishError::class],
         backoff = Backoff(delay = 1L),
         maxAttempts = 10000,
-        listeners = ["eventRetryListenerSupport"]
     )
     fun raiseLedgerEntryEvent(accountId: String, event: SpecificRecord)
 
@@ -32,7 +27,6 @@ interface EventPublisherService {
         value = [EventPublishError::class],
         backoff = Backoff(delay = 1L),
         maxAttempts = 10000,
-        listeners = ["eventRetryListenerSupport"]
     )
     fun raiseAuditEvent(accountId: String, event: SpecificRecord)
 }
@@ -72,24 +66,6 @@ class EventPublisherServiceImpl : EventPublisherService {
             .send { msg ->
                 sinkAuditEvent.tryEmitNext(msg)
             }
-    }
-}
-
-@Component("eventRetryListenerSupport")
-class EventRetryListenerSupport : RetryListener {
-
-    override fun <T : Any?, E : Throwable?> onError(
-        context: RetryContext?,
-        callback: RetryCallback<T?, E?>?,
-        throwable: Throwable?
-    ) {
-        if (context?.let { it.retryCount % 100L == 0L } == true) {
-            log.atWarn {
-                message = "Event retry tracker issue"
-                payload = mapOf("eventPublishRetryCount" to "${context.retryCount}")
-            }
-        }
-        super.onError(context, callback, throwable)
     }
 }
 

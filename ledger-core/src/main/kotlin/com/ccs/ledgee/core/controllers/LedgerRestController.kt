@@ -3,10 +3,12 @@ package com.ccs.ledgee.core.controllers
 import com.ccs.ledgee.core.controllers.models.LedgerApiRequest
 import com.ccs.ledgee.core.controllers.models.LedgerApiResponse
 import com.ccs.ledgee.core.controllers.models.LedgerDto
+import com.ccs.ledgee.core.events.EventPublisherService
 import com.ccs.ledgee.core.repositories.IsPending
 import com.ccs.ledgee.core.repositories.LedgerEntity
 import com.ccs.ledgee.core.repositories.LedgerEntryType
 import com.ccs.ledgee.core.services.LedgerService
+import com.ccs.ledgee.core.services.toLedgerEntryRecordedEvent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.withLoggingContext
 import jakarta.validation.Valid
@@ -23,7 +25,8 @@ private val log = KotlinLogging.logger { }
 @RestController
 @RequestMapping("/api/v1/accounts/{accountId}")
 class LedgerController(
-    private val ledgerService: LedgerService
+    private val ledgerService: LedgerService,
+    private val eventPublisherService: EventPublisherService,
 ) {
 
     @PostMapping("/{entryType}")
@@ -42,6 +45,10 @@ class LedgerController(
                 entryType,
                 request.data,
                 request.data.createdBy
+            )
+            eventPublisherService.raiseLedgerEntryEvent(
+                savedEntity.account.publicId,
+                savedEntity.toLedgerEntryRecordedEvent()
             )
             return LedgerApiResponse(
                 id = savedEntity.publicId,

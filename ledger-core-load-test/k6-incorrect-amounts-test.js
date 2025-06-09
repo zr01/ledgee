@@ -4,8 +4,8 @@ import {uuidv4} from "https://jslib.k6.io/k6-utils/1.4.0/index.js"
 
 export const options = {
     stages: [
-        // {duration: "15s", target: 5},
-        {duration: "30s", target: 10},
+        {duration: "5s", target: 5},
+        // {duration: "30s", target: 10},
         // {duration: "1m30s", target: 20},
         // {duration: "20s", target: 0},
     ],
@@ -48,7 +48,7 @@ export default function () {
             type: "LedgerEntry",
             data: {
                 ...payload.data,
-                productCode: "business"
+                amount: payload.data.amount + 1
             }
         }),
         {headers}
