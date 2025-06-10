@@ -12,9 +12,11 @@ import com.ccs.ledgee.core.utils.amountFor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.transaction.Transactional
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Service
+import java.time.OffsetDateTime
 
 private val log = KotlinLogging.logger { }
 
@@ -34,7 +36,8 @@ interface VirtualAccountService {
 
     @Retryable(
         value = [
-            IllegalStateException::class
+            IllegalStateException::class,
+            OptimisticLockingFailureException::class,
         ],
         backoff = Backoff(10L),
         maxAttempts = 50
@@ -110,21 +113,16 @@ class VirtualAccountServiceImpl(
             ?: throw IllegalStateException("Virtual account not found for public id $publicAccountId")
         val currency = account.currency.let { Iso4217Currency.getCurrency(it) }
         val amount = amount.amountFor(currency) * sign
+        val balance = virtualAccountBalanceRepository.findByVirtualAccountIdAndIsProjected(
+            account.id,
+            BalanceType.Projected
+        ) ?: throw IllegalStateException("Virtual account balance not found for account id ${account.publicId}")
 
         if (isPending == IsPending.Yes) {
-            virtualAccountBalanceRepository
-                .updatePendingBalance(
-                    account.id,
-                    BalanceType.Projected.ordinal,
-                    amount
-                )
+            balance.pendingBalance += amount
         } else {
-            virtualAccountBalanceRepository
-                .updateAvailableBalance(
-                    account.id,
-                    BalanceType.Projected.ordinal,
-                    amount
-                )
+            balance.availableBalance += amount
         }
+        balance.lastUpdated = OffsetDateTime.now()
     }
 }

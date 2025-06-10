@@ -100,6 +100,7 @@ class LedgerServiceImpl(
             actualBalance.pendingBalance += movement
         else
             actualBalance.availableBalance += movement
+        actualBalance.lastUpdated = OffsetDateTime.now()
 
         val saveToDb = ledgerRepository.save(entry)
 //        eventPublisherService

@@ -13,10 +13,9 @@ import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
 import jakarta.persistence.Version
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
-import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
+import java.time.OffsetDateTime
 
 private const val VIRTUAL_ACCOUNT_BALANCES_SEQ = "virtual_account_balance_id_seq"
 
@@ -47,6 +46,9 @@ data class VirtualAccountBalanceEntity(
     @Column
     var pendingBalance: BigDecimal = BigDecimal.ZERO,
 
+    @Column
+    var lastUpdated: OffsetDateTime = OffsetDateTime.now(),
+
     @Version
     @Column
     var version: Long = 0L
@@ -56,34 +58,8 @@ data class VirtualAccountBalanceEntity(
 
 @Repository
 interface VirtualAccountBalanceRepository : JpaRepository<VirtualAccountBalanceEntity, Long> {
-
-    @Modifying
-    @Query(
-        nativeQuery = true, value = """UPDATE virtual_account_balance
-  SET available_balance = available_balance + :balance
-  WHERE
-    account_id = :virtualAccountId
-    and is_projected = :isProjected
-    """
-    )
-    fun updateAvailableBalance(
+    fun findByVirtualAccountIdAndIsProjected(
         virtualAccountId: Long,
-        isProjected: Int,
-        balance: BigDecimal
-    ): Int
-
-    @Modifying
-    @Query(
-        nativeQuery = true, value = """UPDATE virtual_account_balance
-  SET pending_balance = pending_balance + :balance
-  WHERE
-    account_id = :virtualAccountId
-    and is_projected = :isProjected
-    """
-    )
-    fun updatePendingBalance(
-        virtualAccountId: Long,
-        isProjected: Int,
-        balance: BigDecimal
-    ): Int
+        isProjected: BalanceType
+    ): VirtualAccountBalanceEntity?
 }

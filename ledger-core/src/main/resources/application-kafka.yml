@@ -84,7 +84,7 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 15
+            concurrency: 30
 
       kafka:
         streams:

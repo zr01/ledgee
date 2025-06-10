@@ -5,6 +5,7 @@ CREATE TABLE virtual_account_balance
     is_projected      smallint       NOT NULL,
     available_balance numeric(19, 4) NOT NULL DEFAULT 0,
     pending_balance   numeric(19, 4) NOT NULL DEFAULT 0,
+    last_updated      timestamptz    NOT NULL DEFAULT current_timestamp,
     version           bigint         NOT NULL DEFAULT 0,
     PRIMARY KEY (id, is_projected),
     CONSTRAINT fk_virtual_account FOREIGN KEY (account_id)
