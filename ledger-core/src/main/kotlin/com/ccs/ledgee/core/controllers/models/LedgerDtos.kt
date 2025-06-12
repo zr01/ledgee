@@ -2,6 +2,7 @@ package com.ccs.ledgee.core.controllers.models
 
 data class LedgerDto(
     val amount: Long,
+    val accountId: String,
     val productCode: String,
     val isPending: Boolean,
     val externalReferenceId: String,

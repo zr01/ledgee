@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
 private val log = KotlinLogging.logger { }
 
 @RestController
-@RequestMapping("/api/v1/accounts/{accountId}")
+@RequestMapping("/api/v1/ledger")
 class LedgerController(
     private val ledgerService: LedgerService,
     private val eventPublisherService: EventPublisherService,
@@ -32,16 +32,14 @@ class LedgerController(
     @PostMapping("/{entryType}")
     @ResponseStatus(HttpStatus.CREATED)
     fun createLedgerEntry(
-        @PathVariable accountId: String,
         @PathVariable entryType: LedgerEntryType,
         @Valid @RequestBody request: LedgerApiRequest
     ): LedgerApiResponse {
         withLoggingContext(
-            "accountId" to accountId,
+            "accountId" to request.data.accountId,
             "entryType" to entryType.name
         ) {
             val savedEntity = ledgerService.postLedgerEntry(
-                accountId,
                 entryType,
                 request.data,
                 request.data.createdBy
@@ -61,6 +59,7 @@ class LedgerController(
 
 fun LedgerEntity.toDto() = LedgerDto(
     amount = amount,
+    accountId = account.accountId,
     productCode = account.productCode,
     isPending = isPending == IsPending.Yes,
     externalReferenceId = externalReferenceId,

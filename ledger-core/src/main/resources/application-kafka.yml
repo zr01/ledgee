@@ -38,7 +38,7 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 15
+            concurrency: 5
         ledgerRerouteProcessor-out-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-by-ref-records
           content-type: application/*+avro
@@ -51,7 +51,7 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 15
+            concurrency: 5
         bookkeepingWaitForReconciliationProcessor-out-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-waiting-records
           content-type: application/*+avro
@@ -70,21 +70,21 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 15
+            concurrency: 5
 
         reconciliationFailedConsumer-in-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-unbalanced-records
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 15
+            concurrency: 5
 
         projectedAccountBalanceConsumer-in-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-records
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 30
+            concurrency: 5
 
       kafka:
         streams:
@@ -100,7 +100,7 @@ spring:
                 application-id: ${ENV_PREFIX:local}-bookkeeping-ledger-reroute-processor-v0.23
             projectedAccountBalanceConsumer-in-0:
               consumer:
-                application-id: ${ENV_PREFIX:local}-bookkeeping-account-balance-consumer-v0.23
+                application-id: ${ENV_PREFIX:local}-bookkeeping-account-balance-consumer-v0.23-r
             reconciliationFailedConsumer-in-0:
               consumer:
                 application-id: ${ENV_PREFIX:local}-bookkeeping-ledger-reconcile-fail-consumer-v0.23

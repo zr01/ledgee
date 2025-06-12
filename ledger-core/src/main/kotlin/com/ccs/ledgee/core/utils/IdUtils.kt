@@ -18,10 +18,11 @@ class IdGenerator(
 
     @Synchronized
     private fun AtomicLong.refreshGetAndIncrement(): Long {
-        val seq = getAndIncrement()
+        var seq = getAndIncrement()
         if (seq >= range.second) {
             range = reserveIds()
             counter.set(range.first)
+            seq = counter.getAndIncrement()
         }
         return seq
     }

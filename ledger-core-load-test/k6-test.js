@@ -12,7 +12,7 @@ export const options = {
 }
 
 const accountProductCode = ["banking", "creditcard"]
-const merchantAccounts = ["merch-1", "merch-2", "merch-3"]
+const merchantAccounts = ["merch-1", "merch-2", "merch-3", "merch-4", "merch-5"]
 const isPendings = [true, false]
 
 export default function () {
@@ -23,6 +23,7 @@ export default function () {
     const payload = {
         type: "LedgerEntry",
         data: {
+            accountId: accountId,
             amount: Math.floor(Math.random() * 100000) + 10000,
             productCode: accountProductCode[Math.floor(Math.random() * 2)],
             description: `test-${uuidv4()}`,
@@ -33,7 +34,7 @@ export default function () {
     }
 
     const debitResponse = http.post(
-        `http://localhost:8080/api/v1/accounts/${accountId}/DebitRecord`,
+        `http://localhost:8080/api/v1/ledger/DebitRecord`,
         JSON.stringify(payload),
         {headers}
     )
@@ -43,11 +44,12 @@ export default function () {
     })
 
     const creditResponse = http.post(
-        `http://localhost:8080/api/v1/accounts/${merchantAccounts[Math.floor(Math.random() * 3)]}/CreditRecord`,
+        `http://localhost:8080/api/v1/ledger/CreditRecord`,
         JSON.stringify({
             type: "LedgerEntry",
             data: {
                 ...payload.data,
+                accountId: merchantAccounts[Math.floor(Math.random() * 5)],
                 productCode: "business"
             }
         }),

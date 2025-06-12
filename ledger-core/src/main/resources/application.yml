@@ -36,5 +36,8 @@ ledger:
 logging:
   level:
     root: ERROR
-    com.ccs: WARN
+    com.ccs: INFO
+#    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceKt: DEBUG
+#    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceImpl: DEBUG
+#    com.ccs.ledgee.core.services.VirtualAccountBalanceService: DEBUG
 #  config: classpath:logback-logstash.xml

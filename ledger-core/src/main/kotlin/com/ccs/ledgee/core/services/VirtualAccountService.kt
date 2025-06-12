@@ -33,21 +33,6 @@ interface VirtualAccountService {
         productCode: String,
         createdBy: String
     ): VirtualAccountEntity
-
-    @Retryable(
-        value = [
-            IllegalStateException::class,
-            OptimisticLockingFailureException::class,
-        ],
-        backoff = Backoff(10L),
-        maxAttempts = 50
-    )
-    fun updateAccountBalance(
-        publicAccountId: String,
-        entryType: LedgerEntryType,
-        isPending: IsPending,
-        amount: Long
-    )
 }
 
 @Service
@@ -98,31 +83,5 @@ class VirtualAccountServiceImpl(
                 }
             )
         return virtualAccount
-    }
-
-    override fun updateAccountBalance(
-        publicAccountId: String,
-        entryType: LedgerEntryType,
-        isPending: IsPending,
-        amount: Long
-    ) {
-        val sign = if (entryType == LedgerEntryType.DebitRecord)
-            (-1).toBigDecimal()
-        else 1.toBigDecimal()
-        val account = virtualAccountsRepository.findByPublicId(publicAccountId)
-            ?: throw IllegalStateException("Virtual account not found for public id $publicAccountId")
-        val currency = account.currency.let { Iso4217Currency.getCurrency(it) }
-        val amount = amount.amountFor(currency) * sign
-        val balance = virtualAccountBalanceRepository.findByVirtualAccountIdAndIsProjected(
-            account.id,
-            BalanceType.Projected
-        ) ?: throw IllegalStateException("Virtual account balance not found for account id ${account.publicId}")
-
-        if (isPending == IsPending.Yes) {
-            balance.pendingBalance += amount
-        } else {
-            balance.availableBalance += amount
-        }
-        balance.lastUpdated = OffsetDateTime.now()
     }
 }

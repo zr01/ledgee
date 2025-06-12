@@ -17,14 +17,24 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.PagingAndSortingRepository
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
 import java.time.OffsetDateTime
 
 const val LEDGER_SEQ = "ledger_id_seq"
 const val LEDGER_DEFAULT_CREATED_BY = "system"
+private val NEGATIVE = (-1).toBigDecimal()
+private val POSITIVE = 1.toBigDecimal()
 
-enum class LedgerEntryType {
-    DebitRecord,
-    CreditRecord
+enum class LedgerEntryType(
+    val sign: BigDecimal,
+    val isCorrection: Boolean
+) {
+    DebitRecord(NEGATIVE, false),
+    CreditRecord(POSITIVE, false),
+    VoidDebitRecord(POSITIVE, false),
+    VoidCreditRecord(NEGATIVE, false),
+    DebitRecordCorrection(NEGATIVE, true),
+    CreditRecordCorrection(POSITIVE, true)
 }
 
 enum class IsPending {
@@ -38,6 +48,7 @@ enum class LedgerRecordStatus {
     Balanced,
     Unbalanced,
     Excess,
+    Superseded,
     Error,
     HotArchive,
     ColdArchive,

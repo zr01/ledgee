@@ -40,5 +40,4 @@ class SequenceServiceImpl(
             .resultList as List<Array<*>>
         return listOf(ids[0][1] as Long, ids[0][0] as Long)
     }
-
 }

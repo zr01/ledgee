@@ -7,11 +7,10 @@ import com.ccs.ledgee.core.repositories.ChangeType
 import com.ccs.ledgee.core.repositories.IsPending
 import com.ccs.ledgee.core.repositories.LedgerEntity
 import com.ccs.ledgee.core.repositories.LedgerEntryType
+import com.ccs.ledgee.core.repositories.LedgerRecordStatus
 import com.ccs.ledgee.core.repositories.LedgerRepository
 import com.ccs.ledgee.core.repositories.VirtualAccountEntity
 import com.ccs.ledgee.core.utils.IdGenerator
-import com.ccs.ledgee.core.utils.Iso4217Currency
-import com.ccs.ledgee.core.utils.amountFor
 import com.ccs.ledgee.core.utils.uuidStr
 import com.ccs.ledgee.events.LedgerAuditEvent
 import com.ccs.ledgee.events.LedgerEntryRecordedEvent
@@ -19,6 +18,7 @@ import com.ccs.ledgee.events.ReconciliationInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.transaction.Transactional
 import org.hibernate.exception.JDBCConnectionException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
@@ -32,17 +32,33 @@ interface LedgerService {
     @Retryable(
         value = [
             ObjectOptimisticLockingFailureException::class,
+            DataIntegrityViolationException::class,
             JDBCConnectionException::class
         ],
         maxAttempts = 1000,
         backoff = Backoff(1L)
     )
     fun postLedgerEntry(
-        accountId: String,
         entryType: LedgerEntryType,
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity
+
+    @Retryable(
+        value = [
+            ObjectOptimisticLockingFailureException::class,
+            JDBCConnectionException::class
+        ],
+        maxAttempts = 1000,
+        backoff = Backoff(1L)
+    )
+    fun postLedgerCorrectionEntries(
+        publicAccountId: String,
+        parentPublicId: String,
+        entryType: LedgerEntryType,
+        ledgerDto: LedgerDto,
+        createdBy: String
+    )
 
     fun postAuditEntry(entry: LedgerEntity)
 }
@@ -52,7 +68,8 @@ interface LedgerService {
 class LedgerServiceImpl(
     private val ledgerRepository: LedgerRepository,
     private val virtualAccountService: VirtualAccountService,
-    sequenceService: SequenceService
+    sequenceService: SequenceService,
+    private val virtualAccountBalanceService: VirtualAccountBalanceService
 ) : LedgerService {
 
     private val drIdGenerator = IdGenerator(
@@ -70,18 +87,13 @@ class LedgerServiceImpl(
     }
 
     override fun postLedgerEntry(
-        accountId: String,
         entryType: LedgerEntryType,
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity {
-        val (publicId, sign) = if (entryType == LedgerEntryType.DebitRecord)
-            drIdGenerator.nextVal() to (-1).toBigDecimal()
-        else
-            crIdGenerator.nextVal() to 1.toBigDecimal()
-
+        val publicId = entryType.generatePublicId(drIdGenerator, crIdGenerator)
         val account = virtualAccountService.retrieveOrCreateAccount(
-            accountId = accountId,
+            accountId = ledgerDto.accountId,
             productCode = ledgerDto.productCode,
             createdBy = createdBy
         )
@@ -93,15 +105,12 @@ class LedgerServiceImpl(
         )
 
         // Update balance
-        val actualBalance = account.balances.first { it.isProjected == BalanceType.Actual }
-        val c = Iso4217Currency.getCurrency(account.currency)
-        val movement = entry.amount.amountFor(c) * sign
-        if (entry.isPending == IsPending.Yes)
-            actualBalance.pendingBalance += movement
-        else
-            actualBalance.availableBalance += movement
-        actualBalance.lastUpdated = OffsetDateTime.now()
-
+        virtualAccountBalanceService
+            .updateAccountBalance(
+                account,
+                BalanceType.Actual,
+                listOf(entry)
+            )
         val saveToDb = ledgerRepository.save(entry)
 //        eventPublisherService
 //            .raiseAuditEvent(
@@ -119,10 +128,47 @@ class LedgerServiceImpl(
         return saveToDb
     }
 
+    override fun postLedgerCorrectionEntries(
+        publicAccountId: String,
+        parentPublicId: String,
+        entryType: LedgerEntryType,
+        ledgerDto: LedgerDto,
+        createdBy: String
+    ) {
+        // Accepting only the ledger entry types for *Correction
+        if (!entryType.isCorrection) {
+            throw LedgerCorrectionException("Entry types is not accepted for correction")
+        }
+
+        // Validate that we are not correcting records that have a minimum of Balanced == 2
+        val entries = ledgerRepository.findAllByExternalReferenceId(ledgerDto.externalReferenceId)
+        if (entries.filter { it.recordStatus == LedgerRecordStatus.Balanced }.size == 2) {
+            throw LedgerCorrectionException("Entries are already balanced for ${ledgerDto.externalReferenceId}")
+        }
+
+        TODO("Not yet implemented")
+    }
+
     override fun postAuditEntry(entry: LedgerEntity) {
         TODO("Not yet implemented")
     }
 }
+
+private fun LedgerEntryType.generatePublicId(
+    drIdGenerator: IdGenerator,
+    crIdGenerator: IdGenerator
+) = when (this) {
+    LedgerEntryType.DebitRecord,
+    LedgerEntryType.DebitRecordCorrection,
+    LedgerEntryType.VoidDebitRecord -> drIdGenerator.nextVal()
+
+    LedgerEntryType.CreditRecord,
+    LedgerEntryType.CreditRecordCorrection,
+    LedgerEntryType.VoidCreditRecord -> crIdGenerator.nextVal()
+}
+
+class LedgerCorrectionException(msg: String = "Incorrect Ledger Correction Entries", cause: Throwable? = null) :
+    RuntimeException(msg, cause)
 
 fun LedgerEntity.toLedgerEntryRecordedEvent(
     reconciliationInfo: ReconciliationInfo? = null,

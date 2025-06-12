@@ -1,8 +1,9 @@
 package com.ccs.ledgee.core.events.consumers
 
-import com.ccs.ledgee.core.repositories.IsPending
-import com.ccs.ledgee.core.repositories.LedgerEntryType
-import com.ccs.ledgee.core.services.VirtualAccountService
+import com.ccs.ledgee.core.repositories.BalanceType
+import com.ccs.ledgee.core.repositories.LedgerRepository
+import com.ccs.ledgee.core.repositories.VirtualAccountsRepository
+import com.ccs.ledgee.core.services.VirtualAccountBalanceService
 import com.ccs.ledgee.events.LedgerEntryRecordedEvent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.kafka.streams.kstream.KStream
@@ -14,19 +15,26 @@ private val log = KotlinLogging.logger { }
 
 @Service
 class ProjectedAccountBalanceConsumerService(
-    private val virtualAccountService: VirtualAccountService
+    private val virtualAccountsRepository: VirtualAccountsRepository,
+    private val ledgerRepository: LedgerRepository,
+    private val virtualAccountBalanceService: VirtualAccountBalanceService
 ) {
 
     @Bean
     fun projectedAccountBalanceConsumer(): Consumer<KStream<String, LedgerEntryRecordedEvent>> = Consumer { stream ->
         stream
             .foreach { _, event ->
-                virtualAccountService
+                val account = virtualAccountsRepository
+                    .findByPublicId(event.publicAccountId)
+                    ?: throw IllegalStateException("Virtual Account does not exist [${event.publicAccountId}]")
+                val entry = ledgerRepository.findByPublicId(event.publicId)
+                    ?: throw IllegalStateException("Ledger entry does not exist [${event.publicId}]")
+
+                virtualAccountBalanceService
                     .updateAccountBalance(
-                        event.publicAccountId,
-                        LedgerEntryType.valueOf(event.entryType),
-                        IsPending.valueOf(event.isPending),
-                        event.amount
+                        account,
+                        BalanceType.Projected,
+                        listOf(entry)
                     )
 
                 log.atInfo {
