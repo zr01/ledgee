@@ -15,7 +15,21 @@ interface SequenceService {
 class SequenceServiceImpl(
     private val entityManager: EntityManager
 ) : SequenceService {
+
     override fun reserveAppAccountIds(range: Int): List<Long> {
+        val ids = entityManager
+            .createNativeQuery(
+                """SELECT
+                |setval('app_account_id_seq', (SELECT last_value + :range FROM app_account_id_seq), true) as end_value,
+                |(SELECT last_value - :range + 1 FROM app_account_id_seq) as start_value
+            """.trimMargin()
+            )
+            .setParameter("range", range)
+            .resultList as List<Array<*>>
+        return listOf(ids[0][1] as Long, ids[0][0] as Long)
+    }
+
+    override fun reserveAppLedgerIds(range: Int): List<Long> {
         val ids = entityManager
             .createNativeQuery(
                 """SELECT
@@ -28,16 +42,4 @@ class SequenceServiceImpl(
         return listOf(ids[0][1] as Long, ids[0][0] as Long)
     }
 
-    override fun reserveAppLedgerIds(range: Int): List<Long> {
-        val ids = entityManager
-            .createNativeQuery(
-                """SELECT
-                |setval('app_account_id_seq', (SELECT last_value + :range FROM app_account_id_seq), true) as end_value,
-                |(SELECT last_value - :range + 1 FROM app_account_id_seq) as start_value
-            """.trimMargin()
-            )
-            .setParameter("range", range)
-            .resultList as List<Array<*>>
-        return listOf(ids[0][1] as Long, ids[0][0] as Long)
-    }
 }

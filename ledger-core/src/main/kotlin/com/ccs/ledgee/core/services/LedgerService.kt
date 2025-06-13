@@ -53,12 +53,11 @@ interface LedgerService {
         backoff = Backoff(1L)
     )
     fun postLedgerCorrectionEntries(
-        publicAccountId: String,
         parentPublicId: String,
         entryType: LedgerEntryType,
-        ledgerDto: LedgerDto,
+        amount: Long,
         createdBy: String
-    )
+    ): List<LedgerEntity>
 
     fun postAuditEntry(entry: LedgerEntity)
 }
@@ -91,60 +90,69 @@ class LedgerServiceImpl(
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity {
-        val publicId = entryType.generatePublicId(drIdGenerator, crIdGenerator)
-        val account = virtualAccountService.retrieveOrCreateAccount(
-            accountId = ledgerDto.accountId,
-            productCode = ledgerDto.productCode,
-            createdBy = createdBy
-        )
-        val entry = ledgerDto.toLedgerEntity(
-            publicId,
-            account,
-            entryType,
-            createdBy
-        )
-
-        // Update balance
-        virtualAccountBalanceService
-            .updateAccountBalance(
-                account,
-                BalanceType.Actual,
-                listOf(entry)
+        try {
+            val publicId = entryType.generatePublicId(drIdGenerator, crIdGenerator)
+            val account = virtualAccountService.retrieveOrCreateAccount(
+                accountId = ledgerDto.accountId,
+                productCode = ledgerDto.productCode,
+                createdBy = createdBy
             )
-        val saveToDb = ledgerRepository.save(entry)
+            val entry = ledgerDto.toLedgerEntity(
+                publicId,
+                account,
+                entryType,
+                createdBy
+            )
+
+            // Update balance
+            virtualAccountBalanceService
+                .updateAccountBalance(
+                    account,
+                    BalanceType.Actual,
+                    listOf(entry)
+                )
+            val saveToDb = ledgerRepository.save(entry)
 //        eventPublisherService
 //            .raiseAuditEvent(
 //                saveToDb.account.publicId,
 //                saveToDb.toCreatedAuditEvent()
 //            )
 
-        log.atInfo {
-            payload = mapOf(
-                "publicAccountId" to account.publicId,
-                "publicLedgerId" to entry.publicId
-            )
-            message = "Created Ledger Entry"
+            log.atInfo {
+                payload = mapOf(
+                    "publicAccountId" to account.publicId,
+                    "publicLedgerId" to entry.publicId
+                )
+                message = "Created Ledger Entry"
+            }
+            return saveToDb
+        } catch (e: Exception) {
+            log.error(e) { "Some key error!" }
+            throw e
         }
-        return saveToDb
     }
 
     override fun postLedgerCorrectionEntries(
-        publicAccountId: String,
         parentPublicId: String,
         entryType: LedgerEntryType,
-        ledgerDto: LedgerDto,
+        amount: Long,
         createdBy: String
-    ) {
+    ): List<LedgerEntity> {
         // Accepting only the ledger entry types for *Correction
         if (!entryType.isCorrection) {
             throw LedgerCorrectionException("Entry types is not accepted for correction")
         }
 
         // Validate that we are not correcting records that have a minimum of Balanced == 2
-        val entries = ledgerRepository.findAllByExternalReferenceId(ledgerDto.externalReferenceId)
+        val entryToCorrect = ledgerRepository.findByPublicId(parentPublicId)
+            ?: throw IllegalArgumentException("Ledger entry does not exist: $parentPublicId")
+        val entries = ledgerRepository.findAllByExternalReferenceId(entryToCorrect.externalReferenceId)
         if (entries.filter { it.recordStatus == LedgerRecordStatus.Balanced }.size == 2) {
-            throw LedgerCorrectionException("Entries are already balanced for ${ledgerDto.externalReferenceId}")
+            throw LedgerCorrectionException("Entries are already balanced for ${entryToCorrect.externalReferenceId}")
         }
+
+        // Create the void entry
+        // Create the correction entry
 
         TODO("Not yet implemented")
     }
@@ -154,17 +162,22 @@ class LedgerServiceImpl(
     }
 }
 
+private fun LedgerEntryType.getCorrectionEntryTypes(): List<LedgerEntryType> = when (this) {
+    LedgerEntryType.DebitRecord -> listOf(LedgerEntryType.DebitRecordVoid)
+    else -> throw IllegalStateException("No valid entry types for correction for $name")
+}
+
 private fun LedgerEntryType.generatePublicId(
     drIdGenerator: IdGenerator,
     crIdGenerator: IdGenerator
 ) = when (this) {
     LedgerEntryType.DebitRecord,
     LedgerEntryType.DebitRecordCorrection,
-    LedgerEntryType.VoidDebitRecord -> drIdGenerator.nextVal()
+    LedgerEntryType.DebitRecordVoid -> drIdGenerator.nextVal()
 
     LedgerEntryType.CreditRecord,
     LedgerEntryType.CreditRecordCorrection,
-    LedgerEntryType.VoidCreditRecord -> crIdGenerator.nextVal()
+    LedgerEntryType.CreditRecordVoid -> crIdGenerator.nextVal()
 }
 
 class LedgerCorrectionException(msg: String = "Incorrect Ledger Correction Entries", cause: Throwable? = null) :

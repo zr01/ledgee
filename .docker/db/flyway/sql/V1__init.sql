@@ -33,7 +33,7 @@ CREATE TABLE ledger
     created_on            timestamptz not null,
     created_by            text        not null,
     PRIMARY KEY (id, is_pending, record_status),
-    constraint unique_ledger_public_id UNIQUE (public_id, account_id, entry_type, is_pending, record_status),
+    constraint unique_ledger_public_id_for_account UNIQUE (public_id, is_pending, record_status),
     constraint unique_ledger_external_reference_id UNIQUE (external_reference_id, account_id, entry_type, is_pending,
                                                            record_status)
 ) PARTITION BY RANGE (is_pending, record_status);

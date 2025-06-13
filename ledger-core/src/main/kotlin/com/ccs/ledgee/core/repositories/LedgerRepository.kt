@@ -12,9 +12,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.OneToOne
 import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.PagingAndSortingRepository
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
@@ -31,8 +29,8 @@ enum class LedgerEntryType(
 ) {
     DebitRecord(NEGATIVE, false),
     CreditRecord(POSITIVE, false),
-    VoidDebitRecord(POSITIVE, false),
-    VoidCreditRecord(NEGATIVE, false),
+    DebitRecordVoid(POSITIVE, false),
+    CreditRecordVoid(NEGATIVE, false),
     DebitRecordCorrection(NEGATIVE, true),
     CreditRecordCorrection(POSITIVE, true)
 }
