@@ -17,7 +17,7 @@ class ApiExceptionHandler {
     fun handleRuntimeException(e: RuntimeException) = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR)
         .apply {
             title = "unhandled_error"
-            this.detail = e.message ?: "Unhandled error"
-            log.error(e) { "Unhandled error" }
+            this.detail = "Unhandled error"
+            log.error(e) { "Unhandled error, ${e::class.simpleName}: ${e.message}" }
         }
 }

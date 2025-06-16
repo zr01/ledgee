@@ -1,5 +1,6 @@
 package com.ccs.ledgee.core.repositories
 
+import com.ccs.ledgee.core.repositories.LedgerEntryType.entries
 import com.ccs.ledgee.core.utils.uuidStr
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Entity
@@ -32,8 +33,10 @@ enum class LedgerEntryType(
     DebitRecordVoid(POSITIVE, false),
     CreditRecordVoid(NEGATIVE, false),
     DebitRecordCorrection(NEGATIVE, true),
-    CreditRecordCorrection(POSITIVE, true)
+    CreditRecordCorrection(POSITIVE, true);
 }
+
+fun LedgerEntryType.isEquivalent(value: String): Boolean = name.equals(value, ignoreCase = true)
 
 enum class IsPending {
     No,
@@ -46,11 +49,11 @@ enum class LedgerRecordStatus {
     Balanced,
     Unbalanced,
     Excess,
-    Superseded,
     Error,
     HotArchive,
     ColdArchive,
-    ForDeletion
+    ForDeletion,
+    Void
 }
 
 @Entity

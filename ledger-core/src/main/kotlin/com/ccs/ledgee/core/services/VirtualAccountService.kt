@@ -1,22 +1,14 @@
 package com.ccs.ledgee.core.services
 
-import com.ccs.ledgee.core.repositories.BalanceType
-import com.ccs.ledgee.core.repositories.IsPending
-import com.ccs.ledgee.core.repositories.LedgerEntryType
-import com.ccs.ledgee.core.repositories.VirtualAccountBalanceRepository
 import com.ccs.ledgee.core.repositories.VirtualAccountEntity
 import com.ccs.ledgee.core.repositories.VirtualAccountsRepository
 import com.ccs.ledgee.core.utils.IdGenerator
-import com.ccs.ledgee.core.utils.Iso4217Currency
-import com.ccs.ledgee.core.utils.amountFor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.transaction.Transactional
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Service
-import java.time.OffsetDateTime
 
 private val log = KotlinLogging.logger { }
 
@@ -33,13 +25,14 @@ interface VirtualAccountService {
         productCode: String,
         createdBy: String
     ): VirtualAccountEntity
+
+    fun retrieveAccountByPublicId(publicAccountId: String): VirtualAccountEntity
 }
 
 @Service
 @Transactional
 class VirtualAccountServiceImpl(
     private val virtualAccountsRepository: VirtualAccountsRepository,
-    private val virtualAccountBalanceRepository: VirtualAccountBalanceRepository,
     sequenceService: SequenceService
 ) : VirtualAccountService {
 
@@ -83,5 +76,10 @@ class VirtualAccountServiceImpl(
                 }
             )
         return virtualAccount
+    }
+
+    override fun retrieveAccountByPublicId(publicAccountId: String): VirtualAccountEntity {
+        return virtualAccountsRepository.findByPublicId(publicAccountId)
+            ?: throw NoSuchElementException("Account with id $publicAccountId not found")
     }
 }

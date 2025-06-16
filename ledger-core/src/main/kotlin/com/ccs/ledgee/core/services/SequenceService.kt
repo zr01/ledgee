@@ -16,6 +16,7 @@ class SequenceServiceImpl(
     private val entityManager: EntityManager
 ) : SequenceService {
 
+    @Suppress("UNCHECKED_CAST")
     override fun reserveAppAccountIds(range: Int): List<Long> {
         val ids = entityManager
             .createNativeQuery(
@@ -29,6 +30,7 @@ class SequenceServiceImpl(
         return listOf(ids[0][1] as Long, ids[0][0] as Long)
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun reserveAppLedgerIds(range: Int): List<Long> {
         val ids = entityManager
             .createNativeQuery(

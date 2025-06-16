@@ -122,7 +122,7 @@
         "default": null
       },
       {
-        "name": "incorrectDebits",
+        "name": "ledgerEntries",
         "type": [
           "null",
           {
@@ -133,21 +133,7 @@
           }
         ],
         "default": null,
-        "doc": "List of incorrect debit entries that could not be reconciled due to errors like excess records or amount mismatch"
-      },
-      {
-        "name": "incorrectCredits",
-        "type": [
-          "null",
-          {
-            "type": "array",
-            "items": [
-              "com.ccs.ledgee.events.LedgerEntryRecordedEvent"
-            ]
-          }
-        ],
-        "default": null,
-        "doc": "List of incorrect credit entries that could not be reconciled due to errors like excess records or amount mismatch"
+        "doc": "List of all the entries that can be reconciled"
       },
       {
         "name": "reconciliationStatus",
