@@ -20,7 +20,7 @@ Content-Type: application/json
     "accountId": "022-022-11223344",
     "productCode": "debitcard",
     "isPending": false,
-    "externalReferenceId": "EXT789",
+    "externalReferenceId": "EXT790",
     "description": "Sample debit record",
     "createdBy": "api-user"
   }
@@ -33,7 +33,7 @@ Content-Type: application/json
 {
   "type": "LedgerEntry",
   "data": {
-    "amount": 1001,
+    "amount": 1000,
     "accountId": "merch-unbalanced-1",
     "productCode": "banking",
     "isPending": false,

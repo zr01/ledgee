@@ -17,8 +17,8 @@ interface VirtualAccountService {
         value = [
             DataIntegrityViolationException::class
         ],
-        backoff = Backoff(10L),
-        maxAttempts = 50
+        backoff = Backoff(1L),
+        maxAttempts = 1000
     )
     fun retrieveOrCreateAccount(
         accountId: String,

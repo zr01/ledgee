@@ -1,6 +1,7 @@
 package com.ccs.ledgee.core.services
 
 import com.ccs.ledgee.commons.EventDetail
+import com.ccs.ledgee.core.aop.PublishLedgerEvent
 import com.ccs.ledgee.core.controllers.models.LedgerDto
 import com.ccs.ledgee.core.repositories.BalanceType
 import com.ccs.ledgee.core.repositories.ChangeType
@@ -28,32 +29,15 @@ private val log = KotlinLogging.logger { }
 
 interface LedgerService {
 
-    @Retryable(
-        value = [
-            ObjectOptimisticLockingFailureException::class,
-            JDBCConnectionException::class
-        ],
-        maxAttempts = 1000,
-        backoff = Backoff(1L)
-    )
     fun postLedgerEntry(
         entryType: LedgerEntryType,
         ledgerDto: LedgerDto,
         createdBy: String
     ): LedgerEntity
 
-    @Retryable(
-        value = [
-            ObjectOptimisticLockingFailureException::class,
-            JDBCConnectionException::class
-        ],
-        maxAttempts = 1000,
-        backoff = Backoff(1L)
-    )
     fun postLedgerCorrectionEntries(
         parentPublicId: String,
         publicAccountId: String,
-        correctionEntryType: LedgerEntryType,
         amount: Long,
         createdBy: String
     ): List<LedgerEntity>
@@ -84,6 +68,15 @@ class LedgerServiceImpl(
         range[1] to range[0]
     }
 
+    @PublishLedgerEvent
+    @Retryable(
+        value = [
+            ObjectOptimisticLockingFailureException::class,
+            JDBCConnectionException::class
+        ],
+        maxAttempts = 1000,
+        backoff = Backoff(1L)
+    )
     override fun postLedgerEntry(
         entryType: LedgerEntryType,
         ledgerDto: LedgerDto,
@@ -127,18 +120,21 @@ class LedgerServiceImpl(
 
     }
 
+    @PublishLedgerEvent
+    @Retryable(
+        value = [
+            ObjectOptimisticLockingFailureException::class,
+            JDBCConnectionException::class
+        ],
+        maxAttempts = 1000,
+        backoff = Backoff(1L)
+    )
     override fun postLedgerCorrectionEntries(
         parentPublicId: String,
         publicAccountId: String,
-        correctionEntryType: LedgerEntryType,
         amount: Long,
         createdBy: String
     ): List<LedgerEntity> {
-        // Accepting only the ledger entry types for *Correction
-        if (!correctionEntryType.isCorrection) {
-            throw IllegalArgumentException("Entry types is not accepted for correction")
-        }
-
         // Validate the account
         val account = virtualAccountService.retrieveAccountByPublicId(publicAccountId)
         // Validate that we are not correcting records that have a minimum of Balanced == 2
@@ -149,6 +145,7 @@ class LedgerServiceImpl(
             throw IllegalArgumentException("Ledger entry does not match account")
         }
 
+        val correctionEntryType = entryToCorrect.entryType.getCorrectionType()
         if (!correctionEntryType.isCorrectionFor(entryToCorrect.entryType)) {
             throw IllegalArgumentException("Entry type $correctionEntryType does not match to entry's type")
         }

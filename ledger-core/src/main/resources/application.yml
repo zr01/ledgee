@@ -36,7 +36,7 @@ ledger:
 logging:
   level:
     root: ERROR
-    com.ccs: ERROR
+    com.ccs: WARN
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceKt: DEBUG
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceImpl: DEBUG
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceService: DEBUG

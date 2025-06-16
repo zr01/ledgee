@@ -38,7 +38,7 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 10
         ledgerRerouteProcessor-out-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-by-ref-records
           content-type: application/*+avro
@@ -51,7 +51,7 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 10
         bookkeepingWaitForReconciliationProcessor-out-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-waiting-records
           content-type: application/*+avro
@@ -70,21 +70,21 @@ spring:
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 10
 
         reconciliationFailedConsumer-in-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-unbalanced-records
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 10
 
         projectedAccountBalanceConsumer-in-0:
           destination: ${ENV_PREFIX:local}-bookkeeping-ledger-records
           content-type: application/*+avro
           consumer:
             use-native-decoding: true
-            concurrency: 5
+            concurrency: 10
 
       kafka:
         streams:

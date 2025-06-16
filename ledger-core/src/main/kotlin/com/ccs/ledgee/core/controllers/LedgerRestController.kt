@@ -5,12 +5,10 @@ import com.ccs.ledgee.core.controllers.models.LedgerApiResponse
 import com.ccs.ledgee.core.controllers.models.LedgerCorrectionApiRequest
 import com.ccs.ledgee.core.controllers.models.LedgerCorrectionApiResponse
 import com.ccs.ledgee.core.controllers.models.LedgerDto
-import com.ccs.ledgee.core.events.EventPublisherService
 import com.ccs.ledgee.core.repositories.IsPending
 import com.ccs.ledgee.core.repositories.LedgerEntity
 import com.ccs.ledgee.core.repositories.LedgerEntryType
 import com.ccs.ledgee.core.services.LedgerService
-import com.ccs.ledgee.core.services.toLedgerEntryRecordedEvent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.withLoggingContext
 import jakarta.validation.Valid
@@ -27,8 +25,7 @@ private val log = KotlinLogging.logger { }
 @RestController
 @RequestMapping("/api/v1/ledger")
 class LedgerController(
-    private val ledgerService: LedgerService,
-    private val eventPublisherService: EventPublisherService,
+    private val ledgerService: LedgerService
 ) {
 
     @PostMapping("/account/{publicAccountId}/entry/{entryType}")
@@ -63,10 +60,7 @@ class LedgerController(
                 request.data,
                 request.data.createdBy
             )
-            eventPublisherService.raiseLedgerEntryEvent(
-                savedEntity.account.publicId,
-                savedEntity.toLedgerEntryRecordedEvent()
-            )
+
             return LedgerApiResponse(
                 id = savedEntity.publicId,
                 type = request.type,
@@ -75,33 +69,24 @@ class LedgerController(
         }
     }
 
-    @PostMapping("/{parentPublicId}/correction/{correctionEntryType}")
+    @PostMapping("/{parentPublicId}/correction")
     @ResponseStatus(HttpStatus.ACCEPTED)
     fun createCorrectionEntry(
         @PathVariable parentPublicId: String,
-        @PathVariable correctionEntryType: LedgerEntryType,
         @RequestBody request: LedgerCorrectionApiRequest
     ): LedgerCorrectionApiResponse {
         withLoggingContext(
             "publicAccountId" to request.data.publicAccountId,
             "parentPublicId" to parentPublicId,
-            "entryType" to correctionEntryType.name,
         ) {
             val correctionEntries = ledgerService
                 .postLedgerCorrectionEntries(
                     parentPublicId = parentPublicId,
                     publicAccountId = request.data.publicAccountId,
-                    correctionEntryType = correctionEntryType,
                     amount = request.data.amount,
                     createdBy = request.data.createdBy
                 )
 
-            correctionEntries.forEach { entry ->
-                eventPublisherService.raiseLedgerEntryEvent(
-                    entry.account.publicId,
-                    entry.toLedgerEntryRecordedEvent()
-                )
-            }
             return LedgerCorrectionApiResponse(
                 id = correctionEntries.last().publicId,
                 type = request.type,
