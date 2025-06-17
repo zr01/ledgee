@@ -16,7 +16,6 @@ typealias LedgerApiRequest = ApiRequest<LedgerDto>
 typealias LedgerApiResponse = ApiResponse<LedgerDto>
 
 data class LedgerCorrectionDto(
-    val publicAccountId: String,
     val amount: Long,
     val createdBy: String,
 )

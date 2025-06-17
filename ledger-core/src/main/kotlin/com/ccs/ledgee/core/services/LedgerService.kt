@@ -37,7 +37,6 @@ interface LedgerService {
 
     fun postLedgerCorrectionEntries(
         parentPublicId: String,
-        publicAccountId: String,
         amount: Long,
         createdBy: String
     ): List<LedgerEntity>
@@ -131,15 +130,15 @@ class LedgerServiceImpl(
     )
     override fun postLedgerCorrectionEntries(
         parentPublicId: String,
-        publicAccountId: String,
         amount: Long,
         createdBy: String
     ): List<LedgerEntity> {
-        // Validate the account
-        val account = virtualAccountService.retrieveAccountByPublicId(publicAccountId)
         // Validate that we are not correcting records that have a minimum of Balanced == 2
         val entryToCorrect = ledgerRepository.findByPublicId(parentPublicId)
             ?: throw IllegalArgumentException("Ledger entry does not exist: $parentPublicId")
+
+        // Validate the account
+        val account = entryToCorrect.account
 
         if (entryToCorrect.account.publicId != account.publicId) {
             throw IllegalArgumentException("Ledger entry does not match account")
@@ -196,7 +195,7 @@ class LedgerServiceImpl(
                 "parentPublicId" to parentPublicId,
                 "voidPublicId" to voidEntry.publicId,
                 "correctionPublicId" to correctionEntry.publicId,
-                "publicAccountId" to publicAccountId,
+                "publicAccountId" to account.publicId,
             )
             message = "Created correction ledger entries"
         }

@@ -15,8 +15,8 @@ Staged --> Excess
 Excess --> [*]
 Balanced --> [*]
 
-Unbalanced --> Superseded
-Superseded --> [*]
+Unbalanced --> Void
+Void --> [*]
 
 @enduml
 ```
@@ -49,7 +49,7 @@ It should create 2 entries which should typically correct an unbalanced record p
 
 1. Create a *Void of the record to be corrected
 2. Create A *Correction of the record with the right amount
-3. Mark the original as Superseded
+3. Mark the original as Void
 4. Re-balance of the transactions
 
 #### Creating a *Void of the record to be corrected

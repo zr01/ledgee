@@ -38,16 +38,18 @@ class LedgerRecordProcessorsService {
                         .setReconciliationStatus(LedgerRecordStatus.Staged.name)
                         .build()
                 }, { externalRefId, entry, record ->
-                    processAggregate(externalRefId, entry, record)
+                    processEventToRecord(externalRefId, entry, record)
                 }).toStream()
                 .split()
                 .branch { _, r ->
+                    log.debug { "SendTo normal: $r" }
                     // Reconciled/Waiting Topic
-                    r.reconciliationStatus == LedgerRecordStatus.Balanced.name || r.reconciliationStatus == LedgerRecordStatus.WaitingForPair.name
+                    r.reconciliationStatus != LedgerRecordStatus.Error.name
                 }
                 .branch { _, r ->
+                    log.debug { "SendTo dlq: $r" }
                     // DLQ
-                    r.reconciliationStatus != LedgerRecordStatus.Balanced.name && r.reconciliationStatus != LedgerRecordStatus.WaitingForPair.name
+                    r.reconciliationStatus == LedgerRecordStatus.Error.name
                 }
                 .noDefaultBranch()
                 .values
@@ -61,7 +63,6 @@ class LedgerRecordProcessorsService {
         // Entry registration to record
         if (record.debitEntry != null) {
             entry.recordStatus = LedgerRecordStatus.Excess.name
-            record.ledgerEntries.add(entry)
             throw LedgerReconciliationException(
                 entry = entry,
                 record = record,
@@ -80,7 +81,6 @@ class LedgerRecordProcessorsService {
     ): LedgerEntriesReconciledEvent {
         if (record.creditEntry != null) {
             entry.recordStatus = LedgerRecordStatus.Excess.name
-            record.ledgerEntries.add(entry)
             throw LedgerReconciliationException(
                 entry = entry,
                 record = record,
@@ -101,7 +101,6 @@ class LedgerRecordProcessorsService {
     ): LedgerEntriesReconciledEvent {
         if (record.debitEntry == null) {
             entry.recordStatus = LedgerRecordStatus.Excess.name
-            record.ledgerEntries.add(entry)
             throw LedgerReconciliationException(
                 entry = entry,
                 record = record,
@@ -113,10 +112,9 @@ class LedgerRecordProcessorsService {
         entry.recordStatus = LedgerRecordStatus.Void.name
         originalEntry.recordStatus = LedgerRecordStatus.Void.name
 
-        record.ledgerEntries.add(originalEntry)
         record.debitEntry = null
 
-        return record.reconcileVoid()
+        return record.reconcileVoid(originalEntry)
     }
 
     private fun processCreditRecordVoid(
@@ -125,7 +123,6 @@ class LedgerRecordProcessorsService {
     ): LedgerEntriesReconciledEvent {
         if (record.creditEntry == null) {
             entry.recordStatus = LedgerRecordStatus.Excess.name
-            record.ledgerEntries.add(entry)
             throw LedgerReconciliationException(
                 entry = entry,
                 record = record,
@@ -137,23 +134,40 @@ class LedgerRecordProcessorsService {
         entry.recordStatus = LedgerRecordStatus.Void.name
         originalEntry.recordStatus = LedgerRecordStatus.Void.name
 
-        record.ledgerEntries.add(originalEntry)
         record.creditEntry = null
 
-        return record.reconcileVoid()
+        return record.reconcileVoid(originalEntry)
     }
 
-    private fun processAggregate(
+    fun processEventToRecord(
         externalRefId: String,
         entry: LedgerEntryRecordedEvent,
         record: LedgerEntriesReconciledEvent
     ) = try {
+        record.ledgerEntries.add(entry)
         when (entry.entryType) {
-            LedgerEntryType.DebitRecord.name, LedgerEntryType.DebitRecordCorrection.name -> processDebitRecordEntry(record, entry)
-            LedgerEntryType.CreditRecord.name, LedgerEntryType.CreditRecordCorrection.name -> processCreditRecordEntry(record, entry)
+            LedgerEntryType.DebitRecord.name, LedgerEntryType.DebitRecordCorrection.name -> processDebitRecordEntry(
+                record,
+                entry
+            )
+
+            LedgerEntryType.CreditRecord.name, LedgerEntryType.CreditRecordCorrection.name -> processCreditRecordEntry(
+                record,
+                entry
+            )
+
             LedgerEntryType.DebitRecordVoid.name -> processDebitRecordVoid(record, entry)
             LedgerEntryType.CreditRecordVoid.name -> processCreditRecordVoid(record, entry)
-            else -> record
+            else -> {
+                log.atWarn {
+                    message = "Unknown entry type encountered"
+                    payload = mapOf(
+                        "entryType" to entry.entryType,
+                        "externalRefId" to externalRefId
+                    )
+                }
+                record
+            }
         }
     } catch (e: LedgerReconciliationException) {
         record.enrichFromError(e)
@@ -165,28 +179,45 @@ private fun LedgerEntriesReconciledEvent.enrichFromError(e: LedgerReconciliation
     reconciliationStatus = when (e.errorCode) {
         LedgerError.EXCESS_DEBIT_RECORDS,
         LedgerError.EXCESS_CREDIT_RECORDS -> LedgerRecordStatus.Excess.name
+
         LedgerError.NOT_ZERO_SUM -> LedgerRecordStatus.Unbalanced.name
         else -> LedgerRecordStatus.Error.name
     }
 }
 
-private fun LedgerEntriesReconciledEvent.reconcileVoid() = apply {
+private fun LedgerEntriesReconciledEvent.reconcileVoid(
+    voidedEntry: LedgerEntryRecordedEvent
+) = apply {
     if (reconciliationStatus == LedgerRecordStatus.Unbalanced.name) {
-        reconciliationStatus = LedgerRecordStatus.Void.name
+        reconciliationStatus = LedgerRecordStatus.WaitingForPair.name
+        ledgerEntries.applyStatusForPublicId(
+            LedgerRecordStatus.Void.name,
+            voidedEntry.publicId
+        )
     }
 }
 
 private fun LedgerEntriesReconciledEvent.reconcile() = apply {
     if (reconciliationStatus == LedgerRecordStatus.Staged.name && isSingleEntryRecorded()) {
         reconciliationStatus = LedgerRecordStatus.WaitingForPair.name
+        creditEntry?.apply {
+            recordStatus = LedgerRecordStatus.WaitingForPair.name
+        }
+        debitEntry?.apply {
+            recordStatus = LedgerRecordStatus.WaitingForPair.name
+        }
     } else if (reconciliationStatus == LedgerRecordStatus.WaitingForPair.name) {
         if (creditEntry != null && debitEntry != null) {
             if (creditEntry.amount != debitEntry.amount) {
                 creditEntry.recordStatus = LedgerRecordStatus.Unbalanced.name
                 debitEntry.recordStatus = LedgerRecordStatus.Unbalanced.name
+                ledgerEntries.applyStatusForPublicId(
+                    LedgerRecordStatus.Unbalanced.name,
+                    creditEntry.publicId, debitEntry.publicId
+                )
                 reconciliationStatus = LedgerRecordStatus.Unbalanced.name
                 throw LedgerReconciliationException(
-                    entry = debitEntry,
+                    entry = (ledgerEntries.last() as LedgerEntryRecordedEvent),
                     record = this,
                     errorCode = LedgerError.NOT_ZERO_SUM,
                     msg = "Debit and credit entries are not balanced"
@@ -194,8 +225,28 @@ private fun LedgerEntriesReconciledEvent.reconcile() = apply {
             } else {
                 creditEntry.recordStatus = LedgerRecordStatus.Balanced.name
                 debitEntry.recordStatus = LedgerRecordStatus.Balanced.name
+                ledgerEntries.applyStatusForPublicId(
+                    LedgerRecordStatus.Balanced.name,
+                    creditEntry.publicId, debitEntry.publicId
+                )
                 reconciliationStatus = LedgerRecordStatus.Balanced.name
             }
+        }
+    }
+}
+
+private fun List<*>.applyStatusForPublicId(
+    newRecordStatus: String,
+    vararg publicIds: String
+) {
+    publicIds.forEach { publicId ->
+        firstOrNull {
+            if (it is LedgerEntryRecordedEvent) {
+                it.publicId == publicId
+            } else false
+        }?.apply {
+            this as LedgerEntryRecordedEvent
+            recordStatus = newRecordStatus
         }
     }
 }

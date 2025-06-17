@@ -47,7 +47,7 @@ class LedgerEventAspect(
         when (result) {
             is LedgerEntity -> {
                 eventPublisherService.raiseLedgerEntryEvent(
-                    result.publicId,
+                    result.account.publicId,
                     result.toLedgerEntryRecordedEvent()
                 )
             }
@@ -57,7 +57,7 @@ class LedgerEventAspect(
                     result.forEach { ledgerEntity ->
                         ledgerEntity as LedgerEntity
                         eventPublisherService.raiseLedgerEntryEvent(
-                            ledgerEntity.publicId,
+                            ledgerEntity.account.publicId,
                             ledgerEntity.toLedgerEntryRecordedEvent()
                         )
                     }

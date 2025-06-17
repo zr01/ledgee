@@ -76,13 +76,11 @@ class LedgerController(
         @RequestBody request: LedgerCorrectionApiRequest
     ): LedgerCorrectionApiResponse {
         withLoggingContext(
-            "publicAccountId" to request.data.publicAccountId,
             "parentPublicId" to parentPublicId,
         ) {
             val correctionEntries = ledgerService
                 .postLedgerCorrectionEntries(
                     parentPublicId = parentPublicId,
-                    publicAccountId = request.data.publicAccountId,
                     amount = request.data.amount,
                     createdBy = request.data.createdBy
                 )

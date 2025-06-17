@@ -3,6 +3,7 @@ package com.ccs.ledgee.core.events.consumers
 import com.ccs.ledgee.core.repositories.LedgerRecordStatus
 import com.ccs.ledgee.core.repositories.LedgerRepository
 import com.ccs.ledgee.events.LedgerEntriesReconciledEvent
+import com.ccs.ledgee.events.LedgerEntryRecordedEvent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.withLoggingContext
 import org.apache.kafka.streams.kstream.KStream
@@ -22,34 +23,30 @@ class ReconciledRecordConsumerService(
     @Bean
     fun reconciledRecordsConsumer(): Consumer<KStream<String, LedgerEntriesReconciledEvent>> = Consumer { stream ->
         stream.foreach { externalReferenceId, event ->
-            withLoggingContext("externalRefId" to externalReferenceId) {
-                if (event.reconciliationStatus == LedgerRecordStatus.Balanced.name) {
-                    ledgerRepository.findAllByExternalReferenceId(externalReferenceId)
-                        .forEach { entry ->
-                            ledgerRepository.save(entry.apply {
-                                recordStatus = LedgerRecordStatus.Balanced
-                                reconciledOn = OffsetDateTime.now()
-                                reconciledBy = RECONCILED_BY
-                            })
+            processRecord(externalReferenceId, event)
+        }
+    }
 
-                            // Raise Audit
-
-                            log.info { "Records balanced for $externalReferenceId" }
-                        }
-                } else if (event.reconciliationStatus == LedgerRecordStatus.WaitingForPair.name) {
-                    val entry = event.creditEntry ?: event.debitEntry ?: throw IllegalStateException("No entry found")
-                    ledgerRepository
-                        .findByPublicId(entry.publicId)
-                        ?.also { dbEntry ->
-                            ledgerRepository.save(dbEntry.apply {
-                                recordStatus = LedgerRecordStatus.WaitingForPair
-                            })
-
-                            // Raise Audit
-                            log.info { "Record waiting for pair for $externalReferenceId" }
-                        }
+    fun processRecord(externalReferenceId: String, event: LedgerEntriesReconciledEvent) {
+        withLoggingContext("externalRefId" to externalReferenceId) {
+            event
+                .ledgerEntries
+                .forEach { entry ->
+                    val ledgerEntry = entry as LedgerEntryRecordedEvent
+                    val dbLedgerEntry = ledgerRepository.findByPublicId(ledgerEntry.publicId)
+                        ?: throw IllegalStateException("Ledger entry not found")
+                    if (dbLedgerEntry.recordStatus.name != ledgerEntry.recordStatus) {
+                        ledgerRepository.save(
+                            dbLedgerEntry.apply {
+                                recordStatus = LedgerRecordStatus.valueOf(ledgerEntry.recordStatus)
+                                if (ledgerEntry.recordStatus == LedgerRecordStatus.Balanced.name) {
+                                    reconciledOn = OffsetDateTime.now()
+                                    reconciledBy = RECONCILED_BY
+                                }
+                            }
+                        )
+                    }
                 }
-            }
         }
     }
 }

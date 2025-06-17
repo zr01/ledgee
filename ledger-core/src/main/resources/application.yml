@@ -37,6 +37,7 @@ logging:
   level:
     root: ERROR
     com.ccs: WARN
+    com.ccs.ledgee.core.events.processors: DEBUG
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceKt: DEBUG
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceServiceImpl: DEBUG
 #    com.ccs.ledgee.core.services.VirtualAccountBalanceService: DEBUG

@@ -27,6 +27,8 @@ interface VirtualAccountService {
     ): VirtualAccountEntity
 
     fun retrieveAccountByPublicId(publicAccountId: String): VirtualAccountEntity
+
+    fun retrieveAccountById(id: Long): VirtualAccountEntity
 }
 
 @Service
@@ -81,5 +83,11 @@ class VirtualAccountServiceImpl(
     override fun retrieveAccountByPublicId(publicAccountId: String): VirtualAccountEntity {
         return virtualAccountsRepository.findByPublicId(publicAccountId)
             ?: throw NoSuchElementException("Account with id $publicAccountId not found")
+    }
+
+    override fun retrieveAccountById(id: Long): VirtualAccountEntity {
+        return virtualAccountsRepository.findById(id)
+            .orElse(null)
+            ?: throw NoSuchElementException("Account with db id $id not found")
     }
 }
